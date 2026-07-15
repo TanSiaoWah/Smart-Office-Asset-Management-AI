@@ -1,0 +1,28 @@
+# Python virtual environment
+pantry/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# Uploaded images
+uploads/
+
+# Model weights
+weights/*.pt
+
+# Node
+node_modules/
+.next/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+.clinerules
