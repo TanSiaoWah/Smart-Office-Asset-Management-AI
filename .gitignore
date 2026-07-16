@@ -8,11 +8,13 @@ __pycache__/
 # Environment variables
 .env
 
-# Uploaded images
+# images
 uploads/
+Test_images/
 
 # Model weights
 weights/*.pt
+models/
 
 # Node
 node_modules/
