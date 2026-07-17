@@ -17,7 +17,8 @@ def get_service() -> DetectionService:
     global _service
     if _service is None:
         model_path = os.environ.get("YOLO_MODEL_PATH", "models/yolo26n.pt")
-        _service = DetectionService(model_path=model_path)
+        device = os.environ.get("DEVICE", "cuda")
+        _service = DetectionService(model_path=model_path, device=device)
     return _service
 
 
@@ -59,5 +60,9 @@ async def detect_items(file: UploadFile = File(...)) -> JSONResponse:
     
     return JSONResponse({
         "image_url": f"/uploads/{detected_filename}",
-        "detections": detections
+        "detections": detections,
+        "model_info": {
+            "model_path": service.model_path if hasattr(service, 'model_path') else "unknown",
+            "device": service.device
+        }
     })

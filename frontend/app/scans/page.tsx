@@ -11,10 +11,17 @@ interface DetectionResult {
   bbox: [number, number, number, number];
 }
 
+// Model info type
+interface ModelInfo {
+  model_path: string;
+  device: string;
+}
+
 // Detection response type
 interface DetectionResponse {
   image_url: string;
   detections: DetectionResult[];
+  model_info: ModelInfo;
 }
 
 export default function ScansPage() {
@@ -174,6 +181,17 @@ export default function ScansPage() {
                 }}
               />
             </div>
+
+            {detectionResult.model_info && (
+              <div className="mb-4 p-3 bg-purple-100 rounded-lg">
+                <p className="text-sm text-purple-800">
+                  <span className="font-semibold">Model:</span> {detectionResult.model_info.model_path ? detectionResult.model_info.model_path.split(/[/\\]/).pop() : "Not found"}
+                </p>
+                <p className="text-sm text-purple-800">
+                  <span className="font-semibold">Device:</span> {detectionResult.model_info.device === "cuda" ? "GPU (CUDA)" : "CPU"}
+                </p>
+              </div>
+            )}
 
             <h3 className="text-lg font-semibold text-purple-700 mb-4">Detected Items:</h3>
             <div className="grid md:grid-cols-2 gap-4">

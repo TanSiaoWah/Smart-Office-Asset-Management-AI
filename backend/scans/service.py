@@ -29,32 +29,59 @@ class DetectionService:
         75: "scissors", 76: "teddy bear", 77: "hair drier", 78: "toothbrush"
     }
     
-    def __init__(self, model_path: str = "models/yolo26n.pt") -> None:
+    def __init__(self, model_path: str = "models/yolo26n.pt", device: str = "cuda") -> None:
         """
         Initialize detection service.
         
         Args:
             model_path: Path to YOLO model file
+            device: Device to run inference on ('cuda' or 'cpu')
         """
-        # Resolve model path
-        if os.path.isabs(model_path) and os.path.exists(model_path):
-            self.model = YOLO(model_path)
+        # Check CUDA availability
+        cuda_available = self._is_cuda_available()
+        
+        # Resolve model path - only use the specified path, no fallback
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        actual_model_path = os.path.join(backend_dir, model_path)
+        
+        if os.path.exists(actual_model_path):
+            self.model = YOLO(actual_model_path)
         else:
-            # Get the backend directory (where this file is located)
-            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            
-            # Try relative path from backend directory
-            full_model_path = os.path.join(backend_dir, model_path)
-            if os.path.exists(full_model_path):
-                self.model = YOLO(full_model_path)
-            else:
-                # Try to find model in models subdirectory
-                models_model_path = os.path.join(backend_dir, "models", "yolo26n.pt")
-                if os.path.exists(models_model_path):
-                    self.model = YOLO(models_model_path)
-                else:
-                    # Use default YOLO model
-                    self.model = YOLO("yolov8n.pt")
+            raise FileNotFoundError(f"Model not found at: {actual_model_path}")
+        
+        # Store the resolved path for reference
+        self.model_path = actual_model_path
+        
+        # Set device - use CUDA if available and requested, otherwise CPU
+        self.device = device if cuda_available else "cpu"
+        
+        # Log initialization details
+        self._log_device_info()
+    
+    def _is_cuda_available(self) -> bool:
+        """Check if CUDA is available."""
+        try:
+            import torch
+            return torch.cuda.is_available()
+        except ImportError:
+            return False
+    
+    def _log_device_info(self) -> None:
+        """Log device and model information."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if self.device == "cuda":
+            try:
+                import torch
+                gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
+                logger.info(f"Using CUDA GPU: {gpu_name}")
+            except Exception:
+                logger.info("Using CUDA device")
+        else:
+            logger.info("Using CPU for inference (CUDA not available)")
+        
+        logger.info(f"Model path: {self.model.model_path if hasattr(self.model, 'model_path') else 'unknown'}")
     
     def detect(self, image_bytes: bytes) -> List[DetectionResult]:
         """
@@ -69,8 +96,8 @@ class DetectionService:
         # Convert bytes to PIL Image
         image = Image.open(io.BytesIO(image_bytes))
         
-        # Run YOLO prediction
-        results = self.model(image)
+        # Run YOLO prediction with CUDA device
+        results = self.model(image, device=self.device)
         
         detections = []
         for i, result in enumerate(results[0].boxes):

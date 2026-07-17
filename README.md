@@ -56,4 +56,36 @@ Create a `.env` file in the project root with:
 
 ```
 NEXT_PUBLIC_API_URL=http://localhost:8000
+YOLO_MODEL_PATH=models/yolo26n.pt
+DEVICE=cuda
+```
+
+## GPU/CUDA Support
+
+The detection service automatically detects and uses CUDA GPU if available. If CUDA is not available, it falls back to CPU. When the service initializes, it logs:
+- Which GPU is being used (if CUDA is available)
+- Whether CPU or CUDA is being used for inference
+- The model path being loaded
+
+Make sure you have:
+- NVIDIA GPU with CUDA support
+- PyTorch with CUDA support installed
+- Properly configured CUDA environment variables
+
+### Model Information
+
+**Model Used:** YOLO-26 Nano (`models/yolo26n.pt`)
+- Custom YOLO model trained on food items
+- Detects various food and pantry items
+- Model path must exist, otherwise the service will raise an error
+
+If you need to use a different model, update the `YOLO_MODEL_PATH` environment variable.
+
+### Verifying CUDA
+
+To verify CUDA is working:
+```python
+import torch
+print(torch.cuda.is_available())  # Should return True
+print(torch.cuda.get_device_name(0))  # Shows GPU name (e.g., 'NVIDIA RTX 3080')
 ```
