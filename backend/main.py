@@ -5,6 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from scans.router import router as scans_router
+
 load_dotenv()
 
 app = FastAPI(title="Smart Pantry AI")
@@ -21,6 +23,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
+app.include_router(scans_router)
+
 # temporary for dev — replace with cloud storage (e.g. Supabase) later
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# Use absolute path for uploads directory
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+uploads_dir = os.path.join(backend_dir, "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")

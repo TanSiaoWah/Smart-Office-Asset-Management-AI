@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-purple-200">
@@ -34,9 +36,11 @@ export default function Home() {
             and hello to organized, efficient cooking.
           </p>
           <div className="flex justify-center space-x-4">
-            <button className="px-8 py-3 bg-purple-600 text-white rounded-lg text-lg font-semibold hover:bg-purple-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl">
-              Start Scanning Now
-            </button>
+            <Link href="/scans">
+              <button className="px-8 py-3 bg-purple-600 text-white rounded-lg text-lg font-semibold hover:bg-purple-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl">
+                Start Scanning Now
+              </button>
+            </Link>
             <button className="px-8 py-3 bg-white text-purple-600 rounded-lg text-lg font-semibold border-2 border-purple-300 hover:bg-purple-50 transform hover:scale-105 transition-all">
               Watch Demo
             </button>
