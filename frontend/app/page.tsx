@@ -12,7 +12,7 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
               </svg>
             </div>
-            <span className="text-2xl font-bold text-purple-800">Smart Pantry AI</span>
+            <span className="text-2xl font-bold text-purple-800">Smart Office Asset Management AI</span>
           </div>
           <div className="flex space-x-4">
             <button className="px-4 py-2 text-purple-600 hover:text-purple-800 transition-colors">Login</button>
@@ -27,13 +27,13 @@ export default function Home() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center">
           <h1 className="text-5xl md:text-6xl font-bold text-purple-900 mb-6">
-            Transform Your Kitchen
-            <span className="block text-purple-600">with AI-Powered Pantry Management</span>
+            Transform Your Office
+            <span className="block text-purple-600">with AI-Powered Asset Management</span>
           </h1>
           <p className="text-lg md:text-xl text-purple-700 max-w-3xl mx-auto mb-10">
-            Smart Pantry AI uses advanced computer vision to instantly identify your food items,
-            track expiration dates, and suggest recipes based on what you have. Say goodbye to waste
-            and hello to organized, efficient cooking.
+            Smart Office Asset Management AI uses advanced computer vision to instantly identify office equipment,
+            track maintenance schedules, and manage inventory. Say goodbye to manual tracking and hello to
+            organized, efficient asset management.
           </p>
           <div className="flex justify-center space-x-4">
             <Link href="/scans">
@@ -58,9 +58,9 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 116 0" />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold text-purple-800 mb-4">Smart Scanning</h3>
+            <h3 className="text-2xl font-bold text-purple-800 mb-4">Asset Scanning</h3>
             <p className="text-purple-600">
-              Simply take a photo of your groceries or pantry items. Our AI instantly recognizes
+              Simply take a photo of your office equipment or assets. Our AI instantly recognizes
               and catalogs everything for you.
             </p>
           </div>
@@ -71,10 +71,10 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold text-purple-800 mb-4">Expiration Tracking</h3>
+            <h3 className="text-2xl font-bold text-purple-800 mb-4">Maintenance Tracking</h3>
             <p className="text-purple-600">
-              Never let food go to waste. Get smart notifications when items are approaching
-              their expiration dates.
+              Never miss equipment maintenance. Get smart notifications when assets are approaching
+              their service dates or warranty expiration.
             </p>
           </div>
 
@@ -84,10 +84,10 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold text-purple-800 mb-4">Recipe Suggestions</h3>
+            <h3 className="text-2xl font-bold text-purple-800 mb-4">Asset Insights</h3>
             <p className="text-purple-600">
-              Discover delicious recipes tailored to the ingredients you already have at home.
-              Reduce waste, enhance flavor.
+              Discover asset documentation and usage insights. Optimize resource allocation and
+              reduce operational costs.
             </p>
           </div>
         </div>
@@ -104,9 +104,9 @@ export default function Home() {
               <div className="w-20 h-20 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
                 <span className="text-3xl font-bold text-white">1</span>
               </div>
-              <h3 className="text-xl font-semibold text-purple-800 mb-3">Scan Your Items</h3>
+              <h3 className="text-xl font-semibold text-purple-800 mb-3">Scan Your Assets</h3>
               <p className="text-purple-600">
-                Take a photo of your groceries or pantry items using your smartphone or webcam.
+                Take a photo of your office assets using your smartphone or webcam.
               </p>
             </div>
             <div className="text-center">
@@ -115,7 +115,7 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold text-purple-800 mb-3">AI Recognition</h3>
               <p className="text-purple-600">
-                Our advanced AI identifies and catalogs your items with high accuracy.
+                Our advanced AI identifies and catalogs your assets with high accuracy.
               </p>
             </div>
             <div className="text-center">
@@ -124,7 +124,7 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold text-purple-800 mb-3">Get Insights</h3>
               <p className="text-purple-600">
-                Receive smart recommendations, expiration alerts, and recipe suggestions.
+                Receive maintenance alerts, asset documentation, and usage analytics.
               </p>
             </div>
           </div>
@@ -135,10 +135,10 @@ export default function Home() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="bg-purple-600 rounded-3xl p-12 text-center">
           <h2 className="text-4xl font-bold text-white mb-4">
-            Ready to Revolutionize Your Pantry?
+            Ready to Revolutionize Your Office Asset Management?
           </h2>
           <p className="text-purple-100 text-lg mb-8 max-w-2xl mx-auto">
-            Join thousands of users who have transformed their kitchen organization with Smart Pantry AI.
+            Join thousands of users who have transformed their office asset tracking with Smart Office Asset Management AI.
           </p>
           <button className="px-8 py-4 bg-white text-purple-600 rounded-lg text-lg font-semibold hover:bg-purple-50 transform hover:scale-105 transition-all shadow-lg">
             Start Free Trial
@@ -157,10 +157,10 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
                   </svg>
                 </div>
-                <span className="text-xl font-bold">Smart Pantry AI</span>
+                <span className="text-xl font-bold">Smart Office Asset Management AI</span>
               </div>
               <p className="text-purple-300">
-                AI-powered pantry management for a smarter, waste-free kitchen.
+                AI-powered office asset management for a smarter, efficient workplace.
               </p>
             </div>
             <div>
@@ -188,7 +188,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-purple-800 mt-8 pt-8 text-center text-purple-300">
-            © 2024 Smart Pantry AI. All rights reserved.
+            © 2024 Smart Office Asset Management AI. All rights reserved.
           </div>
         </div>
       </footer>

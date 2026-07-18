@@ -85,7 +85,7 @@ export default function ScansPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
               </svg>
             </div>
-            <span className="text-2xl font-bold text-purple-800">Smart Pantry AI</span>
+            <span className="text-2xl font-bold text-purple-800">Smart Office Asset Management AI</span>
           </Link>
         </div>
       </nav>
@@ -93,7 +93,7 @@ export default function ScansPage() {
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <h1 className="text-4xl font-bold text-purple-800 mb-8 text-center">
-          Scan Your Pantry Items
+          Scan Your Office Assets
         </h1>
 
         {/* Upload Section */}
@@ -137,7 +137,7 @@ export default function ScansPage() {
                   disabled={isDetecting}
                   className="px-8 py-3 bg-purple-600 text-white rounded-lg text-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isDetecting ? "Detecting..." : "Detect Items"}
+                  {isDetecting ? "Detecting..." : "Detect Assets"}
                 </button>
                 <button
                   onClick={() => {
@@ -193,7 +193,7 @@ export default function ScansPage() {
               </div>
             )}
 
-            <h3 className="text-lg font-semibold text-purple-700 mb-4">Detected Items:</h3>
+            <h3 className="text-lg font-semibold text-purple-700 mb-4">Detected Assets:</h3>
             <div className="grid md:grid-cols-2 gap-4">
               {detectionResult.detections.map((detection) => (
                 <div
@@ -209,7 +209,7 @@ export default function ScansPage() {
             </div>
 
             {detectionResult.detections.length === 0 && (
-              <p className="text-purple-600 text-center">No items detected in this image.</p>
+              <p className="text-purple-600 text-center">No assets detected in this image.</p>
             )}
           </div>
         )}

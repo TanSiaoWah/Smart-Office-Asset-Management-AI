@@ -5,11 +5,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from scans.router import router as scans_router
+from assets.router import router as assets_router
 
 load_dotenv()
 
-app = FastAPI(title="Smart Pantry AI")
+app = FastAPI(title="Smart Office Asset Management AI")
 
 cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
 
@@ -24,7 +24,7 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(scans_router)
+app.include_router(assets_router)
 
 # temporary for dev — replace with cloud storage (e.g. Supabase) later
 # Use absolute path for uploads directory

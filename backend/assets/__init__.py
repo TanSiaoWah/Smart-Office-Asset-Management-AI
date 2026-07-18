@@ -1,4 +1,4 @@
-"""Scans package for Smart Pantry AI."""
+"""Assets package for Smart Office Asset Management AI."""
 from .service import DetectionService
 from .router import router
 

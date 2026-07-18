@@ -16,16 +16,16 @@ def get_service() -> DetectionService:
     """Get or create detection service instance."""
     global _service
     if _service is None:
-        model_path = os.environ.get("YOLO_MODEL_PATH", "models/yolo26n.pt")
+        model_path = os.environ.get("MODEL_PATH", "models/yolo26n.pt")
         device = os.environ.get("DEVICE", "cuda")
         _service = DetectionService(model_path=model_path, device=device)
     return _service
 
 
 @router.post("/detect")
-async def detect_items(file: UploadFile = File(...)) -> JSONResponse:
+async def detect_assets(file: UploadFile = File(...)) -> JSONResponse:
     """
-    Detect food items in uploaded image.
+    Detect office assets in uploaded image.
     
     Args:
         file: Uploaded image file

@@ -1,4 +1,4 @@
-"""Detection service for YOLO model inference."""
+"""Detection service for YOLO model inference on office assets."""
 import io
 import os
 from typing import List, TypedDict
@@ -16,17 +16,27 @@ class DetectionResult(TypedDict):
 
 
 class DetectionService:
-    """Service for running YOLO model inference on images."""
+    """Service for running YOLO model inference on office asset images."""
     
-    # Common food class names for YOLO models (COCO classes)
-    FOOD_CLASSES = {
-        47: "apple", 48: "orange", 49: "broccoli", 50: "carrot", 51: "hot dog",
-        52: "pizza", 53: "donut", 54: "cake", 55: "chair", 56: "couch",
-        57: "potted plant", 58: "bed", 59: "dining table", 60: "toilet",
-        61: "tv", 62: "laptop", 63: "mouse", 64: "remote", 65: "keyboard",
-        66: "cell phone", 67: "microwave", 68: "oven", 69: "toaster",
-        70: "sink", 71: "refrigerator", 72: "book", 73: "clock", 74: "vase",
-        75: "scissors", 76: "teddy bear", 77: "hair drier", 78: "toothbrush"
+    # Default class names for YOLO models (can be overridden with custom model)
+    # Source: backend/models/coco.yaml
+    COCO_CLASSES = {
+        0: "person", 1: "bicycle", 2: "car", 3: "motorcycle", 4: "airplane",
+        5: "bus", 6: "train", 7: "truck", 8: "boat", 9: "traffic light",
+        10: "fire hydrant", 11: "stop sign", 12: "parking meter", 13: "bench", 14: "bird",
+        15: "cat", 16: "dog", 17: "horse", 18: "sheep", 19: "cow",
+        20: "elephant", 21: "bear", 22: "zebra", 23: "giraffe", 24: "backpack",
+        25: "umbrella", 26: "handbag", 27: "tie", 28: "suitcase", 29: "frisbee",
+        30: "skis", 31: "snowboard", 32: "sports ball", 33: "kite", 34: "baseball bat",
+        35: "baseball glove", 36: "skateboard", 37: "surfboard", 38: "tennis racket", 39: "bottle",
+        40: "wine glass", 41: "cup", 42: "fork", 43: "knife", 44: "spoon",
+        45: "bowl", 46: "banana", 47: "apple", 48: "sandwich", 49: "orange",
+        50: "broccoli", 51: "carrot", 52: "hot dog", 53: "pizza", 54: "donut",
+        55: "cake", 56: "chair", 57: "couch", 58: "potted plant", 59: "bed",
+        60: "dining table", 61: "toilet", 62: "tv", 63: "laptop", 64: "mouse",
+        65: "remote", 66: "keyboard", 67: "cell phone", 68: "microwave", 69: "oven",
+        70: "toaster", 71: "sink", 72: "refrigerator", 73: "book", 74: "clock",
+        75: "vase", 76: "scissors", 77: "teddy bear", 78: "hair drier", 79: "toothbrush"
     }
     
     def __init__(self, model_path: str = "models/yolo26n.pt", device: str = "cuda") -> None:
@@ -34,23 +44,23 @@ class DetectionService:
         Initialize detection service.
         
         Args:
-            model_path: Path to YOLO model file
+            model_path: Path to YOLO model file (e.g., 'models/yolo26n.pt', 'yolov8n.pt')
             device: Device to run inference on ('cuda' or 'cpu')
         """
         # Check CUDA availability
         cuda_available = self._is_cuda_available()
         
-        # Resolve model path - only use the specified path, no fallback
-        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        actual_model_path = os.path.join(backend_dir, model_path)
+        self.model_path = model_path
         
-        if os.path.exists(actual_model_path):
-            self.model = YOLO(actual_model_path)
-        else:
-            raise FileNotFoundError(f"Model not found at: {actual_model_path}")
+        # Resolve full path for custom models
+        if model_path.startswith("models/"):
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            full_path = os.path.join(backend_dir, model_path)
+            if os.path.exists(full_path):
+                model_path = full_path
         
-        # Store the resolved path for reference
-        self.model_path = actual_model_path
+        # Load the specified model
+        self.model = YOLO(model_path)
         
         # Set device - use CUDA if available and requested, otherwise CPU
         self.device = device if cuda_available else "cpu"
@@ -83,9 +93,20 @@ class DetectionService:
         
         logger.info(f"Model path: {self.model.model_path if hasattr(self.model, 'model_path') else 'unknown'}")
     
+    def _get_class_names(self) -> dict:
+        """
+        Get class names from the loaded model, falling back to COCO classes.
+        
+        Returns:
+            dict mapping class id (int) to class name (str)
+        """
+        if hasattr(self.model, 'names') and self.model.names:
+            return {int(k): v for k, v in self.model.names.items()}
+        return self.COCO_CLASSES
+
     def detect(self, image_bytes: bytes) -> List[DetectionResult]:
         """
-        Detect food items in image using YOLO model.
+        Detect office assets in image using YOLO model.
         
         Args:
             image_bytes: Raw image bytes
@@ -99,13 +120,16 @@ class DetectionService:
         # Run YOLO prediction with CUDA device
         results = self.model(image, device=self.device)
         
+        # Get class names from the loaded model (supports custom models)
+        class_names = self._get_class_names()
+        
         detections = []
         for i, result in enumerate(results[0].boxes):
             class_id = int(result.cls[0])
             confidence = float(result.conf[0])
             bbox = result.xyxy[0].tolist()  # [x1, y1, x2, y2]
             
-            label = self.FOOD_CLASSES.get(class_id, f"class_{class_id}")
+            label = class_names.get(class_id, f"class_{class_id}")
             
             detections.append(DetectionResult(
                 id=i,
