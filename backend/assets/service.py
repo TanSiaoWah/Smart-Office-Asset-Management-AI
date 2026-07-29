@@ -1,7 +1,8 @@
 """Detection service for YOLO model inference on office assets."""
 import io
 import os
-from typing import List, TypedDict
+import glob
+from typing import Dict, List, TypedDict
 
 from PIL import Image, ImageDraw
 from ultralytics import YOLO
@@ -18,22 +19,16 @@ class DetectionResult(TypedDict):
 class DetectionService:
     """Service for running YOLO model inference on office asset images."""
     
-    # Office asset class names from HomeObjects-3K dataset (12 classes)
-    # Source: backend/models/HomeObjects-3K.yaml
+    # Office asset class names from the dataset
+    # Source: backend/models/dataset.yaml
     HOME_OBJECTS_CLASSES = {
-        0: "bed",
-        1: "sofa",
-        2: "chair",
-        3: "table",
-        4: "lamp",
-        5: "tv",
-        6: "laptop",
-        7: "wardrobe",
-        8: "window",
-        9: "door",
-        10: "potted plant",
-        11: "photo frame"
+        0: "Desk",
+        1: "Chair",
+        2: "Computer monitor"
     }
+    
+    # Cache for loaded YOLO models: model_path -> YOLO instance
+    _model_cache: Dict[str, 'YOLO'] = {}
     
     def __init__(self, model_path: str = "models/best.pt", device: str = "cuda") -> None:
         """
@@ -49,14 +44,14 @@ class DetectionService:
         self.model_path = model_path
         
         # Resolve full path for custom models
-        if model_path.startswith("models/"):
-            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            full_path = os.path.join(backend_dir, model_path)
-            if os.path.exists(full_path):
-                model_path = full_path
+        full_path = self._resolve_model_path(model_path)
         
-        # Load the specified model
-        self.model = YOLO(model_path)
+        # Load or retrieve from cache the specified model
+        if full_path not in self._model_cache:
+            self.model = YOLO(full_path)
+            self._model_cache[full_path] = self.model
+        else:
+            self.model = self._model_cache[full_path]
         
         # Set device - use CUDA if available and requested, otherwise CPU
         self.device = device if cuda_available else "cpu"
@@ -64,7 +59,33 @@ class DetectionService:
         # Log initialization details
         self._log_device_info()
     
-    def _is_cuda_available(self) -> bool:
+    def _resolve_model_path(self, model_path: str) -> str:
+        """
+        Resolve full path for a model file.
+        
+        Args:
+            model_path: Relative or absolute path to the model
+            
+        Returns:
+            Absolute path to the model file
+        """
+        if model_path.startswith("models/"):
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            full_path = os.path.join(backend_dir, model_path)
+            if os.path.exists(full_path):
+                return full_path
+        
+        # Also check if it's just a filename in the models directory
+        if not os.path.dirname(model_path) and not model_path.startswith(("http", "/")):
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            full_path = os.path.join(backend_dir, "models", model_path)
+            if os.path.exists(full_path):
+                return full_path
+        
+        return model_path
+    
+    @staticmethod
+    def _is_cuda_available() -> bool:
         """Check if CUDA is available."""
         try:
             import torch
@@ -88,6 +109,34 @@ class DetectionService:
             logger.info("Using CPU for inference (CUDA not available)")
         
         logger.info(f"Model path: {self.model.model_path if hasattr(self.model, 'model_path') else 'unknown'}")
+    
+    @staticmethod
+    def list_available_models() -> List[dict]:
+        """
+        List all available YOLO model files in the models directory.
+        
+        Returns:
+            List of dicts with 'name' (filename) and 'path' (relative path) keys
+        """
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        models_dir = os.path.join(backend_dir, "models")
+        
+        if not os.path.exists(models_dir):
+            return []
+        
+        model_files = glob.glob(os.path.join(models_dir, "*.pt"))
+        model_files.sort(key=os.path.getmtime, reverse=True)
+        
+        models = []
+        for model_path in model_files:
+            filename = os.path.basename(model_path)
+            models.append({
+                "name": filename,
+                "path": f"models/{filename}",
+                "size": os.path.getsize(model_path)
+            })
+        
+        return models
     
     def _get_class_names(self) -> dict:
         """

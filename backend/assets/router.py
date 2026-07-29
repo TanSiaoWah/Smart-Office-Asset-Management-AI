@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
 from .service import DetectionService
@@ -11,29 +11,68 @@ router = APIRouter(prefix="/detects", tags=["detects"])
 
 # Lazy load service
 _service: DetectionService | None = None
+_current_model_path: str | None = None
 
-def get_service() -> DetectionService:
-    """Get or create detection service instance."""
-    global _service
-    if _service is None:
-        model_path = os.environ.get("MODEL_PATH", "models/yolo26n.pt")
+
+def _get_service_model_path() -> str:
+    """Get the default model path from environment or fallback."""
+    return os.environ.get("MODEL_PATH", "models/yolo26n.pt")
+
+
+def get_service(model_path: str | None = None) -> DetectionService:
+    """
+    Get or create detection service instance.
+    
+    If a model_path is provided that differs from the current service's model,
+    a new service will be created for that model.
+    
+    Args:
+        model_path: Optional path to YOLO model file
+        
+    Returns:
+        DetectionService instance
+    """
+    global _service, _current_model_path
+    
+    target_path = model_path or _get_service_model_path()
+    
+    if _service is None or _current_model_path != target_path:
         device = os.environ.get("DEVICE", "cuda")
-        _service = DetectionService(model_path=model_path, device=device)
+        _service = DetectionService(model_path=target_path, device=device)
+        _current_model_path = target_path
+    
     return _service
 
 
+@router.get("/models")
+async def list_models() -> JSONResponse:
+    """
+    List all available YOLO models in the models directory.
+    
+    Returns:
+        JSONResponse with list of available models
+    """
+    models = DetectionService.list_available_models()
+    return JSONResponse({"models": models})
+
+
 @router.post("/detect")
-async def detect_assets(file: UploadFile = File(...)) -> JSONResponse:
+async def detect_assets(
+    file: UploadFile = File(...),
+    model_path: str = Form(None)
+) -> JSONResponse:
     """
     Detect office assets in uploaded image.
     
     Args:
         file: Uploaded image file
+        model_path: Optional model path to use for detection.
+                    If not provided, uses the default or last-used model.
         
     Returns:
         JSONResponse with detection results and annotated image URL
     """
-    service = get_service()
+    service = get_service(model_path)
     
     # Read image bytes
     image_bytes = await file.read()

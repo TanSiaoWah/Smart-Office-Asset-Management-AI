@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 // Detection result type
 interface DetectionResult {
@@ -24,14 +24,50 @@ interface DetectionResponse {
   model_info: ModelInfo;
 }
 
+// Available model type
+interface ModelOption {
+  name: string;
+  path: string;
+  size: number;
+}
+
+// Models list response type
+interface ModelsListResponse {
+  models: ModelOption[];
+}
+
 export default function ScansPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [detectionResult, setDetectionResult] = useState<DetectionResponse | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [loadingModels, setLoadingModels] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  // Fetch available models on mount
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/detects/models`);
+        if (response.ok) {
+          const data: ModelsListResponse = await response.json();
+          setAvailableModels(data.models);
+          if (data.models.length > 0) {
+            setSelectedModel(data.models[0].path);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch models:", err);
+      } finally {
+        setLoadingModels(false);
+      }
+    };
+    fetchModels();
+  }, [API_BASE_URL]);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -54,6 +90,9 @@ export default function ScansPage() {
 
     const formData = new FormData();
     formData.append("file", fileInputRef.current.files[0]);
+    if (selectedModel) {
+      formData.append("model_path", selectedModel);
+    }
 
     try {
       const response = await fetch(`${API_BASE_URL}/detects/detect`, {
@@ -131,7 +170,60 @@ export default function ScansPage() {
                   className="w-full h-auto rounded-lg shadow-md"
                 />
               </div>
-              <div className="flex justify-center mt-6 space-x-4">
+
+              {/* Model Selector */}
+              <div className="flex justify-center mt-4">
+                <div className="flex items-center space-x-3 bg-purple-50 px-4 py-2 rounded-lg">
+                  <label htmlFor="model-select" className="text-sm font-medium text-purple-700">
+                    Detection Model:
+                  </label>
+                  <select
+                    id="model-select"
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    disabled={loadingModels || isDetecting}
+                    className="bg-white border border-purple-300 text-purple-800 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingModels ? (
+                      <option value="">Loading models...</option>
+                    ) : availableModels.length === 0 ? (
+                      <option value="">No models available</option>
+                    ) : (
+                      availableModels.map((model) => (
+                        <option key={model.path} value={model.path}>
+                          {model.name} ({(model.size / (1024 * 1024)).toFixed(1)} MB)
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  {!loadingModels && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          setLoadingModels(true);
+                          const response = await fetch(`${API_BASE_URL}/detects/models`);
+                          if (response.ok) {
+                            const data: ModelsListResponse = await response.json();
+                            setAvailableModels(data.models);
+                          }
+                        } catch (err) {
+                          console.error("Failed to refresh models:", err);
+                        } finally {
+                          setLoadingModels(false);
+                        }
+                      }}
+                      className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg transition-colors"
+                      title="Refresh models list"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-center mt-4 space-x-4">
                 <button
                   onClick={handleDetect}
                   disabled={isDetecting}
