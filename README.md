@@ -42,6 +42,9 @@ npm install
 npm run dev
 ```
 
+# Upload Model to Huggingface
+huggingface-cli upload MODEL MODEL.PT
+
 ## Project Structure
 
 ```
