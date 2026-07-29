@@ -18,8 +18,13 @@ _storage: SupabaseStorageService | None = None
 
 
 def _get_service_model_path() -> str:
-    """Get the default model path from environment or fallback."""
-    return os.environ.get("MODEL_PATH", "models/yolo26n.pt")
+    """
+    Get the default model path from environment or fallback.
+
+    If MODEL_PATH is not set, defaults to 'best.pt' which triggers
+    the Hugging Face download in DetectionService.
+    """
+    return os.environ.get("MODEL_PATH", "best.pt")
 
 
 def get_storage() -> SupabaseStorageService:

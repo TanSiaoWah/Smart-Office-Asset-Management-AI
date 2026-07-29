@@ -4,7 +4,7 @@ AI-powered office asset management system that uses computer vision to identify 
 
 ## Tech Stack
 
-- **Backend**: Python, FastAPI, SQLAlchemy, PostgreSQL
+- **Backend**: Python, FastAPI, SQLAlchemy, PostgreSQL (setup at Render https://smart-office-asset-management-ai.onrender.com/)
 - **Frontend**: Next.js, TypeScript, TailwindCSS (setup at Vercel https://smart-office-asset.vercel.app/)
 - **AI**: YOLO (Ultralytics) for office asset detection
 - **Storage**: Supabase Storage (bucket-based image storage)
@@ -17,19 +17,21 @@ AI-powered office asset management system that uses computer vision to identify 
 - **Maintenance scheduling and notifications** - Never miss equipment maintenance
 - **Asset documentation and insights** - Discover asset documentation and usage insights
 
-## Getting Started
-### Activate Backend
-```bash
-python -m venv office
-office\Scripts\activate
-```
+## Live Deployments
+
+- **Backend (Render)**: [https://smart-office-asset-management-ai.onrender.com/](https://smart-office-asset-management-ai.onrender.com/)
+- **Frontend (Vercel)**: [https://smart-office-asset.vercel.app/](https://smart-office-asset.vercel.app/)
+
+## Getting Started (Local Development)
+
 ### Backend Setup
 
 ```bash
 cd backend
+python -m venv office
+office\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload
-
 ```
 
 ### Frontend Setup
@@ -134,10 +136,10 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_BUCKET_NAME=images
 ```
 
-And in the project root for the frontend:
+And in the project root for the frontend (use the Render URL for production, or `http://localhost:8000` for local dev):
 
 ```
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=https://smart-office-asset-management-ai.onrender.com
 ```
 
 ### Environment Variable Reference
@@ -152,8 +154,8 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 | `SUPABASE_URL` | — | Supabase project URL (required for cloud storage) |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Supabase service_role key (required, bypasses RLS) |
 | `SUPABASE_BUCKET_NAME` | `images` | Supabase Storage bucket name for uploaded images (case-sensitive) |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Frontend API base URL |
-| `CORS_ORIGINS` | `http://localhost:3000` | Allowed CORS origins (comma-separated) |
+| `NEXT_PUBLIC_API_URL` | `https://smart-office-asset-management-ai.onrender.com` | Frontend API base URL (use `http://localhost:8000` for local dev) |
+| `CORS_ORIGINS` | `https://smart-office-asset.vercel.app` | Allowed CORS origins (comma-separated, add `http://localhost:3000` for local dev) |
 
 ## Image Storage
 
