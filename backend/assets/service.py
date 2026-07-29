@@ -36,7 +36,7 @@ class DetectionService:
 
     # Default Hugging Face model repository
     DEFAULT_HF_REPO = "ZiRanZ/smart-office-yolo26"
-    DEFAULT_HF_FILENAME = "yolo26n.pt"
+    DEFAULT_HF_FILENAME = "yolo26x-openobjects-3classes-lr1e-3-5epochs.pt"
 
     def __init__(
         self,
