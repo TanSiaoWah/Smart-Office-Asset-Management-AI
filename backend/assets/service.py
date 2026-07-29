@@ -236,7 +236,12 @@ class DetectionService:
         image = Image.open(io.BytesIO(image_bytes))
 
         # Run YOLO prediction with CUDA device
-        results = self.model(image, device=self.device)
+        results = self.model(
+            image,
+            imgsz=100,
+            device=self.device,
+            verbose=False,
+        )
 
         # Get class names from the loaded model (supports custom models)
         class_names = self._get_class_names()
