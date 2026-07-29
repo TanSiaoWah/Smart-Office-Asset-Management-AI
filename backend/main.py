@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from assets.router import router as assets_router
 
@@ -24,6 +25,15 @@ app.add_middleware(
 
 # Include routers
 app.include_router(assets_router)
+
+
+@app.get("/", response_class=JSONResponse)
+async def health_check() -> JSONResponse:
+    """
+    Health check endpoint to verify the backend is running.
+    """
+    return JSONResponse({"status": "ok", "message": "Smart Office Asset Management AI backend is running."})
+
 
 # Note: Uploaded original and detected images are stored in Supabase Storage
 # via the SupabaseStorageService. No local static mount is needed.
