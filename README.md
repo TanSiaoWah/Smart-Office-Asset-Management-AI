@@ -4,8 +4,8 @@ AI-powered office asset management system that uses computer vision to identify 
 
 ## Tech Stack
 
-- **Backend**: Python, FastAPI, SQLAlchemy, PostgreSQL (setup at Render https://smart-office-asset-management-ai.onrender.com/)
-- **Frontend**: Next.js, TypeScript, TailwindCSS (setup at Vercel https://smart-office-asset.vercel.app/)
+- **Backend**: Python, FastAPI, SQLAlchemy, PostgreSQL
+- **Frontend**: Next.js, TypeScript, TailwindCSS
 - **AI**: YOLO (Ultralytics) for office asset detection
 - **Storage**: Supabase Storage (bucket-based image storage)
 
