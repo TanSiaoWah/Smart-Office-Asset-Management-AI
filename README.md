@@ -5,13 +5,15 @@ AI-powered office asset management system that uses computer vision to identify 
 ## Tech Stack
 
 - **Backend**: Python, FastAPI, SQLAlchemy, PostgreSQL
-- **Frontend**: Next.js, TypeScript, TailwindCSS
+- **Frontend**: Next.js, TypeScript, TailwindCSS (setup at Vercel https://smart-office-asset.vercel.app/)
 - **AI**: YOLO (Ultralytics) for office asset detection
+- **Storage**: Supabase Storage (bucket-based image storage)
 
 ## Features
 
 - **Smart Asset Scanning** - Upload images and detect office assets (Desk, Chair, Computer monitor) using YOLO models
 - **Multi-Model Support** - Switch between different YOLO models directly from the UI
+- **Cloud Image Storage** - Original and annotated images are stored in a Supabase Storage bucket
 - **Maintenance scheduling and notifications** - Never miss equipment maintenance
 - **Asset documentation and insights** - Discover asset documentation and usage insights
 
@@ -47,14 +49,15 @@ npm run dev
 │   ├── .env                    # Environment variables
 │   ├── assets/
 │   │   ├── router.py           # Detection API routes (/detects/*)
-│   │   └── service.py          # YOLO model inference service
+│   │   ├── service.py          # YOLO model inference service
+│   │   └── storage.py          # Supabase Storage service
 │   ├── models/                 # YOLO model files (.pt)
 │   │   ├── best.pt             # Default trained model
 │   │   ├── yolo26n.pt          # YOLO26 nano model
 │   │   ├── yolo26l.pt          # YOLO26 large model
 │   │   ├── yolo26x.pt          # YOLO26 x-large model
 │   │   └── ...                 # Additional trained models
-│   └── uploads/                # Uploaded and detected images
+│   └── uploads/                # Local fallback directory (not used when Supabase is configured)
 ├── frontend/                   # Next.js frontend application
 │   ├── app/
 │   │   ├── page.tsx            # Main landing page with purple theme
@@ -95,7 +98,8 @@ Detect office assets in an uploaded image.
 **Response:**
 ```json
 {
-  "image_url": "/uploads/detected_20260729_132116_f150d6bf.jpg",
+  "image_url": "https://your-project.supabase.co/storage/v1/object/public/images/detected_20260729_132116_f150d6bf.jpg",
+  "original_image_url": "https://your-project.supabase.co/storage/v1/object/public/images/original_20260729_132116_f150d6bf.jpg",
   "detections": [
     {
       "id": 0,
@@ -121,6 +125,13 @@ UPLOAD_DIR=uploads
 HOST=0.0.0.0
 PORT=8000
 DEVICE=cuda
+
+# Supabase Storage Configuration
+# Use the service_role key (NOT anon key) to bypass RLS policies
+# Find it in Supabase Dashboard → Settings → API → service_role key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_BUCKET_NAME=images
 ```
 
 And in the project root for the frontend:
@@ -134,12 +145,24 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MODEL_PATH` | `models/best.pt` | Default YOLO model file path |
-| `UPLOAD_DIR` | `uploads` | Directory for uploaded images |
+| `UPLOAD_DIR` | `uploads` | Directory for uploaded images (local fallback) |
 | `HOST` | `0.0.0.0` | Backend server host |
 | `PORT` | `8000` | Backend server port |
 | `DEVICE` | `cuda` | Inference device (`cuda` or `cpu`) |
+| `SUPABASE_URL` | — | Supabase project URL (required for cloud storage) |
+| `SUPABASE_SERVICE_ROLE_KEY` | — | Supabase service_role key (required, bypasses RLS) |
+| `SUPABASE_BUCKET_NAME` | `images` | Supabase Storage bucket name for uploaded images (case-sensitive) |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Frontend API base URL |
 | `CORS_ORIGINS` | `http://localhost:3000` | Allowed CORS origins (comma-separated) |
+
+## Image Storage
+
+All uploaded original images and detected (annotated) images are stored in a **Supabase Storage bucket** named `images` (configurable via `SUPABASE_BUCKET_NAME`). The bucket is set to **public** so that the frontend can display the images directly via their public URLs.
+
+- **Original images** are uploaded with the prefix `original_<timestamp>_<uuid>.jpg`
+- **Detected images** (with bounding boxes drawn) are uploaded with the prefix `detected_<timestamp>_<uuid>.jpg`
+
+If `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are not set, the `SupabaseStorageService` will raise a `ValueError` at startup.
 
 ## GPU/CUDA Support
 

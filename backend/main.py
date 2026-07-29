@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from assets.router import router as assets_router
 
@@ -26,9 +25,5 @@ app.add_middleware(
 # Include routers
 app.include_router(assets_router)
 
-# temporary for dev — replace with cloud storage (e.g. Supabase) later
-# Use absolute path for uploads directory
-backend_dir = os.path.dirname(os.path.abspath(__file__))
-uploads_dir = os.path.join(backend_dir, "uploads")
-os.makedirs(uploads_dir, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+# Note: Uploaded original and detected images are stored in Supabase Storage
+# via the SupabaseStorageService. No local static mount is needed.

@@ -20,6 +20,7 @@ interface ModelInfo {
 // Detection response type
 interface DetectionResponse {
   image_url: string;
+  original_image_url: string;
   detections: DetectionResult[];
   model_info: ModelInfo;
 }
@@ -261,13 +262,15 @@ export default function ScansPage() {
             
             <div className="relative w-full max-w-lg mx-auto mb-6">
               <img
-                src={`${API_BASE_URL}${detectionResult.image_url}`}
+                src={detectionResult.image_url}
                 alt="Detected"
                 className="w-full h-auto rounded-lg shadow-md"
                 onError={(e) => {
-                  // Fallback to original preview image if detected image not available
+                  // Fallback to original image URL if detected image not available
                   const target = e.target as HTMLImageElement;
-                  if (selectedImage) {
+                  if (detectionResult.original_image_url) {
+                    target.src = detectionResult.original_image_url;
+                  } else if (selectedImage) {
                     target.src = selectedImage;
                   }
                 }}
