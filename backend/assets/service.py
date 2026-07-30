@@ -238,7 +238,7 @@ class DetectionService:
         # Run YOLO prediction with CUDA device
         results = self.model(
             image,
-            imgsz=100,
+            imgsz=640,
             device=self.device,
             verbose=False,
         )
