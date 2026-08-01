@@ -14,6 +14,7 @@ interface DetectionResult {
 // Model info type
 interface ModelInfo {
   model_path: string;
+  model_type: string;
   device: string;
 }
 
@@ -281,6 +282,9 @@ export default function ScansPage() {
               <div className="mb-4 p-3 bg-purple-100 rounded-lg">
                 <p className="text-sm text-purple-800">
                   <span className="font-semibold">Model:</span> {detectionResult.model_info.model_path ? detectionResult.model_info.model_path.split(/[/\\]/).pop() : "Not found"}
+                </p>
+                <p className="text-sm text-purple-800">
+                  <span className="font-semibold">Type:</span> {detectionResult.model_info.model_type === "onnx" ? "ONNX Runtime" : "PyTorch"}
                 </p>
                 <p className="text-sm text-purple-800">
                   <span className="font-semibold">Device:</span> {detectionResult.model_info.device === "cuda" ? "GPU (CUDA)" : "CPU"}

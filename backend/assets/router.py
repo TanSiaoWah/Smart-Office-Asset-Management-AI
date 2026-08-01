@@ -130,6 +130,7 @@ async def detect_assets(
         "detections": detections,
         "model_info": {
             "model_path": service.model_path if hasattr(service, "model_path") else "unknown",
+            "model_type": service.model_type if hasattr(service, "model_type") else "pytorch",
             "device": service.device,
         },
     })

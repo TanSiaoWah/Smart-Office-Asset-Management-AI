@@ -3,7 +3,6 @@ fastapi==0.139.2
 huggingface_hub>=0.24.0
 
 opencv-python-headless==4.13.0.92
-numpy==2.4.6
 
 pillow==12.3.0
 python-dotenv==1.0.1
@@ -13,10 +12,8 @@ SQLAlchemy==2.0.49
 
 supabase==2.30.0
 
-torch==2.4.1
-torchaudio==2.4.1
-torchvision==0.19.1
-
-ultralytics==8.4.100
-
 uvicorn==0.30.1
+
+onnx==1.22.0
+onnxruntime==1.28.0
+onnxslim==0.1.94
