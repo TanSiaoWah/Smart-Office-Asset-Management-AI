@@ -1,75 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
-
-// Detection result type
-interface DetectionResult {
-  id: number;
-  label: string;
-  confidence: number;
-  bbox: [number, number, number, number];
-}
-
-// Model info type
-interface ModelInfo {
-  model_path: string;
-  model_type: string;
-  device: string;
-}
+import { useState, useRef } from "react";
+import {
+  detectImage,
+  drawDetections,
+  canvasToJpegBlob,
+  loadImageCanvas,
+  type DetectionBox,
+} from "@/lib/yolo";
 
 // Detection response type
 interface DetectionResponse {
   image_url: string;
   original_image_url: string;
-  detections: DetectionResult[];
-  model_info: ModelInfo;
-}
-
-// Available model type
-interface ModelOption {
-  name: string;
-  path: string;
-  size: number;
-}
-
-// Models list response type
-interface ModelsListResponse {
-  models: ModelOption[];
+  detections: DetectionBox[];
+  model_info: {
+    model_path: string;
+    model_type: string;
+    device: string;
+  };
 }
 
 export default function ScansPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [detectionResult, setDetectionResult] = useState<DetectionResponse | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [isDownloadingModel, setIsDownloadingModel] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("");
-  const [loadingModels, setLoadingModels] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-  // Fetch available models on mount
-  useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/detects/models`);
-        if (response.ok) {
-          const data: ModelsListResponse = await response.json();
-          setAvailableModels(data.models);
-          if (data.models.length > 0) {
-            setSelectedModel(data.models[0].path);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch models:", err);
-      } finally {
-        setLoadingModels(false);
-      }
-    };
-    fetchModels();
-  }, [API_BASE_URL]);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -85,33 +46,53 @@ export default function ScansPage() {
   };
 
   const handleDetect = async () => {
-    if (!fileInputRef.current?.files?.[0]) return;
+    const file = fileInputRef.current?.files?.[0];
+    if (!file) return;
 
     setIsDetecting(true);
+    setIsDownloadingModel(false);
     setError(null);
-
-    const formData = new FormData();
-    formData.append("file", fileInputRef.current.files[0]);
-    if (selectedModel) {
-      formData.append("model_path", selectedModel);
-    }
+    setDetectionResult(null);
 
     try {
+      // Stage 1: Run YOLO detection fully in the browser (downloads the
+      // ONNX model from Hugging Face on the first use, then caches it).
+      setIsDownloadingModel(true);
+      const { detections } = await detectImage(file);
+      setIsDownloadingModel(false);
+
+      // Stage 2: Draw bounding boxes on the image and export as JPEG.
+      const canvas = await loadImageCanvas(file);
+      drawDetections(canvas, detections);
+      const annotatedBlob = await canvasToJpegBlob(canvas);
+
+      // Stage 3: Store the original + annotated images and detection
+      // results via the slimmed backend (Supabase storage).
+      const formData = new FormData();
+      formData.append("file", file, file.name || "image.jpg");
+      formData.append(
+        "annotated_file",
+        annotatedBlob,
+        "annotated.jpg"
+      );
+      formData.append("detections", JSON.stringify({ detections }));
+
       const response = await fetch(`${API_BASE_URL}/detects/detect`, {
         method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error("Detection failed");
+        throw new Error(`Detection storage failed (HTTP ${response.status})`);
       }
 
-      const result = await response.json();
+      const result: DetectionResponse = await response.json();
       setDetectionResult(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred during detection");
     } finally {
       setIsDetecting(false);
+      setIsDownloadingModel(false);
     }
   };
 
@@ -173,65 +154,17 @@ export default function ScansPage() {
                 />
               </div>
 
-              {/* Model Selector */}
-              <div className="flex justify-center mt-4">
-                <div className="flex items-center space-x-3 bg-purple-50 px-4 py-2 rounded-lg">
-                  <label htmlFor="model-select" className="text-sm font-medium text-purple-700">
-                    Detection Model:
-                  </label>
-                  <select
-                    id="model-select"
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    disabled={loadingModels || isDetecting}
-                    className="bg-white border border-purple-300 text-purple-800 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loadingModels ? (
-                      <option value="">Loading models...</option>
-                    ) : availableModels.length === 0 ? (
-                      <option value="">No models available</option>
-                    ) : (
-                      availableModels.map((model) => (
-                        <option key={model.path} value={model.path}>
-                          {model.name} ({(model.size / (1024 * 1024)).toFixed(1)} MB)
-                        </option>
-                      ))
-                    )}
-                  </select>
-                  {!loadingModels && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          setLoadingModels(true);
-                          const response = await fetch(`${API_BASE_URL}/detects/models`);
-                          if (response.ok) {
-                            const data: ModelsListResponse = await response.json();
-                            setAvailableModels(data.models);
-                          }
-                        } catch (err) {
-                          console.error("Failed to refresh models:", err);
-                        } finally {
-                          setLoadingModels(false);
-                        }
-                      }}
-                      className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg transition-colors"
-                      title="Refresh models list"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </div>
-
               <div className="flex justify-center mt-4 space-x-4">
                 <button
                   onClick={handleDetect}
                   disabled={isDetecting}
                   className="px-8 py-3 bg-purple-600 text-white rounded-lg text-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isDetecting ? "Detecting..." : "Detect Assets"}
+                  {isDetecting
+                    ? isDownloadingModel
+                      ? "Downloading model…"
+                      : "Detecting…"
+                    : "Detect Assets"}
                 </button>
                 <button
                   onClick={() => {
@@ -246,6 +179,13 @@ export default function ScansPage() {
                   Remove Image
                 </button>
               </div>
+
+              {isDownloadingModel && (
+                <p className="text-sm text-purple-500 text-center mt-3">
+                  This is the first run. The AI model is being downloaded from Hugging Face
+                  (~a few MB) and will be cached in your browser for future scans.
+                </p>
+              )}
             </div>
           )}
 
@@ -260,7 +200,7 @@ export default function ScansPage() {
         {detectionResult && (
           <div className="bg-white/90 rounded-2xl p-8 shadow-lg">
             <h2 className="text-2xl font-bold text-purple-800 mb-6">Detection Results</h2>
-            
+
             <div className="relative w-full max-w-lg mx-auto mb-6">
               <img
                 src={detectionResult.image_url}
@@ -284,10 +224,10 @@ export default function ScansPage() {
                   <span className="font-semibold">Model:</span> {detectionResult.model_info.model_path ? detectionResult.model_info.model_path.split(/[/\\]/).pop() : "Not found"}
                 </p>
                 <p className="text-sm text-purple-800">
-                  <span className="font-semibold">Type:</span> {detectionResult.model_info.model_type === "onnx" ? "ONNX Runtime" : "PyTorch"}
+                  <span className="font-semibold">Type:</span> {detectionResult.model_info.model_type === "onnx" || detectionResult.model_info.model_type === "onnx-web" ? "ONNX Runtime Web" : detectionResult.model_info.model_type}
                 </p>
                 <p className="text-sm text-purple-800">
-                  <span className="font-semibold">Device:</span> {detectionResult.model_info.device === "cuda" ? "GPU (CUDA)" : "CPU"}
+                  <span className="font-semibold">Device:</span> {detectionResult.model_info.device === "cuda" ? "GPU (CUDA)" : detectionResult.model_info.device === "webgpu/wasm" ? "WebGPU / WASM" : detectionResult.model_info.device}
                 </p>
               </div>
             )}
