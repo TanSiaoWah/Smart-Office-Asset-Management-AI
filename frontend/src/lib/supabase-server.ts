@@ -4,12 +4,18 @@
  *
  * Reads the session from cookies so protected routes can check auth state.
  */
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+interface CookieToSet {
+  name: string;
+  value: string;
+  options: CookieOptions;
+}
 
 /**
  * Create a Supabase client bound to the current request's cookies.
@@ -23,7 +29,7 @@ export async function createSupabaseServerClient() {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookieToSet[]) {
         try {
           cookiesToSet.forEach(({ name, value, options }) =>
             cookieStore.set(name, value, options)
@@ -52,7 +58,7 @@ export function createSupabaseMiddlewareClient(
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookieToSet[]) {
         cookiesToSet.forEach(({ name, value, options }) => {
           request.cookies.set(name, value);
           response.cookies.set(name, value, options);
