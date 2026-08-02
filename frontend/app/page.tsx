@@ -1,4 +1,5 @@
 import Link from "next/link";
+import NavAuth from "@/components/NavAuth";
 
 export default function Home() {
   return (
@@ -14,12 +15,7 @@ export default function Home() {
             </div>
             <span className="text-2xl font-bold text-purple-800">Smart Office Asset Management AI</span>
           </div>
-          <div className="flex space-x-4">
-            <button className="px-4 py-2 text-purple-600 hover:text-purple-800 transition-colors">Login</button>
-            <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
-              Get Started
-            </button>
-          </div>
+          <NavAuth />
         </div>
       </nav>
 

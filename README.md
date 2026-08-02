@@ -8,6 +8,7 @@ AI-powered office asset management system that uses computer vision to identify 
 - **Frontend**: Next.js, TypeScript, TailwindCSS
 - **AI**: YOLO (best.onnx) via **ONNX Runtime Web** — detection runs **entirely in the browser**
 - **Storage**: Supabase Storage (bucket-based image storage)
+- **Auth**: Google SSO via **Supabase Auth** — profiles stored in PostgreSQL with UUID + role field
 
 ## How Detection Works (Client-Side)
 
@@ -71,28 +72,47 @@ npm run dev
 ## Project Structure
 
 ```
-├── backend/                    # FastAPI backend server (storage-only)
+├── backend/                    # FastAPI backend server (storage + auth)
 │   ├── main.py                 # FastAPI application entry point
+│   ├── database.py             # SQLAlchemy engine, session, Base
 │   ├── requirements.txt        # Python dependencies
 │   ├── .env                    # Environment variables
 │   ├── assets/
 │   │   ├── router.py           # Endpoints (/detects/*) incl. model proxy
 │   │   ├── service.py          # Pydantic schemas + HF model download helper
 │   │   └── storage.py          # Supabase Storage service
+│   ├── auth/                   # Google SSO authentication package
+│   │   ├── models.py           # Profile ORM model (UUID, email, name, role)
+│   │   ├── schemas.py          # Pydantic schemas (ProfileOut, AuthResponse)
+│   │   ├── service.py          # JWT verification + profile upsert logic
+│   │   ├── dependencies.py     # get_current_profile dependency
+│   │   └── router.py           # Endpoints (/auth/google, /auth/me)
 │   ├── models/                 # Local model files (kept out of git; models
 │   │   │                       # are fetched from Hugging Face at runtime)
 │   └── uploads/                # Local fallback directory (not used when Supabase is configured)
 ├── frontend/                   # Next.js frontend application (client-side detection)
+│   ├── middleware.ts           # Supabase session refresh + route protection
 │   ├── app/
 │   │   ├── page.tsx            # Main landing page with purple theme
 │   │   ├── layout.tsx          # Root layout
 │   │   ├── globals.css         # Global styles
+│   │   ├── login/
+│   │   │   └── page.tsx        # Google SSO login page
+│   │   ├── profile/
+│   │   │   └── page.tsx        # User profile page (view + edit name)
+│   │   ├── auth/
+│   │   │   └── callback/
+│   │   │       └── route.ts    # OAuth callback (code → session → profile sync)
 │   │   ├── scans/
 │   │   │   └── page.tsx        # Image upload and client-side detection page
 │   │   └── test-connection/    # Backend connectivity check page
 │   ├── src/
+│   │   ├── components/
+│   │   │   └── NavAuth.tsx     # Login/Logout nav buttons (client component)
 │   │   └── lib/
-│   │       └── yolo.ts         # ONNX Runtime Web inference (download, preprocess, postprocess)
+│   │       ├── yolo.ts         # ONNX Runtime Web inference (download, preprocess, postprocess)
+│   │       ├── supabase-browser.ts  # Supabase browser client (Google SSO)
+│   │       └── supabase-server.ts   # Supabase server client (middleware, route handlers)
 │   └── package.json            # Node.js dependencies
 ├── Test_Images/                # Sample test images for development
 └── README.md
@@ -166,6 +186,144 @@ detection results in Supabase Storage.
 }
 ```
 
+## Authentication (Google SSO)
+
+This project uses **Supabase Auth** for Google Single Sign-On. The OAuth flow
+works as follows:
+
+1. The user clicks "Sign in with Google" on the `/login` page.
+2. Supabase Auth handles the Google OAuth redirect and returns to
+   `/auth/callback?code=...&next=...`.
+3. The callback route exchanges the code for a session, then calls
+   `POST /auth/google` on the backend to sync the user's **Profile** in
+   PostgreSQL.
+4. The user is redirected to the `next` destination (defaults to `/`).
+
+### Redirect Logic
+
+| Scenario | Behavior |
+|----------|----------|
+| User clicks Login on landing page | → `/login` |
+| User logs in via `/login` | → `/` (main page) |
+| User hits a protected page without login | → `/login?next=<page>` |
+| User logs in after being redirected | → back to `<page>` |
+| Already logged in visits `/login` | → `/` (or `next`) |
+
+### Profile Model
+
+The `Profile` table (in `backend/auth/models.py`) stores:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | UUID (PK) | Unique user ID (`uuid.uuid4`) |
+| `email` | String | Unique, indexed |
+| `name` | String | Display name from Google |
+| `avatar_url` | String (nullable) | Google profile picture URL |
+| `role` | String | `"user"` (default) or `"admin"` |
+| `created_at` | DateTime | Auto-set on creation |
+| `updated_at` | DateTime | Auto-updated on change |
+
+New users default to the `"user"` role. To promote a user to `"admin"`,
+update the `role` column directly in PostgreSQL.
+
+### Auth API Endpoints
+
+#### `POST /auth/google`
+
+Verifies a Supabase access token and upserts the user's Profile.
+
+**Request (JSON):**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+**Response:**
+```json
+{
+  "profile": {
+    "id": "a1b2c3d4-...",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "avatar_url": "https://lh3.googleusercontent.com/...",
+    "role": "user",
+    "created_at": "2026-08-02T12:00:00Z",
+    "updated_at": "2026-08-02T12:00:00Z"
+  }
+}
+```
+
+#### `GET /auth/me`
+
+Returns the currently authenticated user's profile.
+
+**Headers:**
+```
+Authorization: Bearer <supabase_access_token>
+```
+
+**Response:**
+```json
+{
+  "id": "a1b2c3d4-...",
+  "email": "user@example.com",
+  "name": "John Doe",
+  "avatar_url": "https://lh3.googleusercontent.com/...",
+  "role": "user",
+  "created_at": "2026-08-02T12:00:00Z",
+  "updated_at": "2026-08-02T12:00:00Z"
+}
+```
+
+#### `PUT /auth/me`
+
+Updates the authenticated user's profile name.
+
+**Headers:**
+```
+Authorization: Bearer <supabase_access_token>
+```
+
+**Request (JSON):**
+```json
+{
+  "name": "New Display Name"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "a1b2c3d4-...",
+  "email": "user@example.com",
+  "name": "New Display Name",
+  "avatar_url": "https://lh3.googleusercontent.com/...",
+  "role": "user",
+  "created_at": "2026-08-02T12:00:00Z",
+  "updated_at": "2026-08-02T12:30:00Z"
+}
+```
+
+### Supabase Auth Setup
+
+1. Go to **Supabase Dashboard → Authentication → Providers**.
+2. Enable **Google** and add your Google OAuth Client ID and Secret
+   (from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)).
+3. Add your site URL (e.g. `http://localhost:3000` and your Vercel URL) to
+   **Authentication → URL Configuration → Site URL**.
+4. Add `http://localhost:3000/auth/callback` and
+   `https://your-vercel-url.vercel.app/auth/callback` to the **Redirect URLs**.
+
+### Frontend Dependencies
+
+The frontend requires the Supabase SSR packages:
+
+```bash
+cd frontend
+npm install @supabase/supabase-js @supabase/ssr
+```
+
 ## Environment Variables
 
 Create a `.env` file in the `backend/` directory with:
@@ -181,12 +339,26 @@ HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxx
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_BUCKET_NAME=images
+
+# PostgreSQL Database (Supabase Postgres)
+# Get this from Supabase Dashboard → Project Settings → Database → Connection string → URI
+# Format: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.your-project.supabase.co:5432/postgres
+
+# Supabase JWT Secret (for verifying Supabase Auth tokens)
+# Get this from Supabase Dashboard → Project Settings → API → JWT Secret
+SUPABASE_JWT_SECRET=your-supabase-jwt-secret
 ```
 
-And in the project root for the frontend (use the Render URL for production, or `http://localhost:8000` for local dev):
+And in the `frontend/` directory (or project root) for the frontend:
 
 ```
+# Backend API URL (use the Render URL for production, or http://localhost:8000 for local dev)
 NEXT_PUBLIC_API_URL=https://smart-office-asset-management-ai.onrender.com
+
+# Supabase Auth (Google SSO) — these are safe to expose (anon key, not service_role)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
 `NEXT_PUBLIC_ONNX_MODEL_URL` is optional — by default the browser fetches the
@@ -200,8 +372,12 @@ model from the backend proxy at `<NEXT_PUBLIC_API_URL>/detects/model`.
 | `SUPABASE_URL` | — | Supabase project URL (required for cloud storage) |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Supabase service_role key (required, bypasses RLS) |
 | `SUPABASE_BUCKET_NAME` | `images` | Supabase Storage bucket name for uploaded images (case-sensitive) |
+| `DATABASE_URL` | — | PostgreSQL connection string (Supabase Postgres). Format: `postgresql://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres` |
+| `SUPABASE_JWT_SECRET` | — | Supabase JWT secret for verifying auth tokens (Dashboard → Settings → API → JWT Secret) |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend API base URL |
 | `NEXT_PUBLIC_ONNX_MODEL_URL` | `<NEXT_PUBLIC_API_URL>/detects/model` | Optional direct URL to the `best.onnx` model downloaded by the browser (defaults to the backend proxy) |
+| `NEXT_PUBLIC_SUPABASE_URL` | — | Supabase project URL for frontend auth (same as `SUPABASE_URL`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | — | Supabase anon key for frontend auth (safe to expose, NOT the service_role key) |
 | `CORS_ORIGINS` | `http://localhost:3000` | Allowed CORS origins (comma-separated, add your Vercel URL for production) |
 
 ## Image Storage

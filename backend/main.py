@@ -1,3 +1,4 @@
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -6,8 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from assets.router import router as assets_router
+from auth.router import router as auth_router
+from database import Base, engine
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Smart Office Asset Management AI")
 
@@ -23,8 +28,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.on_event("startup")
+def create_tables() -> None:
+    """
+    Create database tables on startup.
+
+    If the database is not reachable (e.g. DATABASE_URL not configured),
+    the server still starts — auth endpoints will return errors until the
+    database is available.
+    """
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created/verified successfully.")
+    except Exception as exc:
+        logger.warning(
+            "Could not connect to database — auth endpoints will fail "
+            "until DATABASE_URL is configured correctly: %s",
+            exc,
+        )
+
+
 # Include routers
 app.include_router(assets_router)
+app.include_router(auth_router)
 
 
 @app.get("/", response_class=JSONResponse)
