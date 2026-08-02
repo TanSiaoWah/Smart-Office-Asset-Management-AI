@@ -9,6 +9,7 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/";
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     /**
@@ -25,17 +26,34 @@ function LoginContent() {
   }, [router, next]);
 
   const handleGoogleLogin = async () => {
+    setError(null);
+
+    // Check that Supabase env vars are configured.
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      setError(
+        "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your environment."
+      );
+      return;
+    }
+
     const redirectTo =
       typeof window !== "undefined"
         ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
         : undefined;
 
-    await supabaseBrowser.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo,
-      },
-    });
+    try {
+      const { error: oauthError } = await supabaseBrowser.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
+      if (oauthError) {
+        setError(oauthError.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to sign in with Google.");
+    }
   };
 
   if (isLoading) {
@@ -71,6 +89,12 @@ function LoginContent() {
           Sign in to Smart Office Asset Management AI to start scanning and
           managing your office assets.
         </p>
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
+
         <button
           onClick={handleGoogleLogin}
           className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white border-2 border-purple-300 rounded-lg text-purple-700 font-semibold hover:bg-purple-50 hover:border-purple-400 transition-all"
