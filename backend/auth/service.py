@@ -24,15 +24,26 @@ def _get_supabase_client():
         A Supabase client instance.
 
     Raises:
-        RuntimeError: If Supabase env vars are not configured.
+        RuntimeError: If Supabase env vars are not configured or invalid.
     """
-    url = os.environ.get("SUPABASE_URL", "")
-    anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+    url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+    anon_key = os.environ.get("SUPABASE_ANON_KEY", "").strip()
     if not url or not anon_key:
         raise RuntimeError(
-            "SUPABASE_URL and SUPABASE_ANON_KEY must be set for auth verification."
+            "SUPABASE_URL and SUPABASE_ANON_KEY must be set for auth verification. "
+            "Add them to your Render environment variables."
         )
-    return create_client(url, anon_key)
+    if not url.startswith("https://"):
+        raise RuntimeError(
+            f"SUPABASE_URL must start with https:// (got: {url}). "
+            "Check your Render environment variables."
+        )
+    try:
+        return create_client(url, anon_key)
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to create Supabase client with URL {url}: {exc}"
+        ) from exc
 
 
 def verify_supabase_token(access_token: str) -> dict[str, Any]:

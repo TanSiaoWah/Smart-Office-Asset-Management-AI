@@ -341,9 +341,11 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_BUCKET_NAME=images
 
 # PostgreSQL Database (Supabase Postgres)
-# Get this from Supabase Dashboard → Project Settings → Database → Connection string → URI
-# Format: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
-DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.your-project.supabase.co:5432/postgres
+# IMPORTANT: Use the connection pooler (port 6543) for Render/Vercel deployments.
+# The direct connection (port 5432) uses IPv6 which Render's free tier does not support.
+# Get this from Supabase Dashboard → Project Settings → Database → Connection string → Transaction pooler
+# Format: postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
 
 # Supabase JWT Secret (for verifying Supabase Auth tokens)
 # Get this from Supabase Dashboard → Project Settings → API → JWT Secret
@@ -372,7 +374,7 @@ model from the backend proxy at `<NEXT_PUBLIC_API_URL>/detects/model`.
 | `SUPABASE_URL` | — | Supabase project URL (required for cloud storage) |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Supabase service_role key (required, bypasses RLS) |
 | `SUPABASE_BUCKET_NAME` | `images` | Supabase Storage bucket name for uploaded images (case-sensitive) |
-| `DATABASE_URL` | — | PostgreSQL connection string (Supabase Postgres). Format: `postgresql://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres` |
+| `DATABASE_URL` | — | PostgreSQL connection string (Supabase Postgres). Use the **connection pooler** (port 6543) for Render/Vercel: `postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres` |
 | `SUPABASE_JWT_SECRET` | — | Supabase JWT secret for verifying auth tokens (Dashboard → Settings → API → JWT Secret) |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend API base URL |
 | `NEXT_PUBLIC_ONNX_MODEL_URL` | `<NEXT_PUBLIC_API_URL>/detects/model` | Optional direct URL to the `best.onnx` model downloaded by the browser (defaults to the backend proxy) |
