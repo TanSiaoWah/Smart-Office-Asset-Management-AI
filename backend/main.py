@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from assets.router import router as assets_router
 from auth.router import router as auth_router
 from database import Base, engine
+from inventory.router import router as inventory_router
 
 load_dotenv()
 
@@ -52,6 +53,7 @@ def create_tables() -> None:
 # Include routers
 app.include_router(assets_router)
 app.include_router(auth_router)
+app.include_router(inventory_router)
 
 
 @app.get("/", response_class=JSONResponse)

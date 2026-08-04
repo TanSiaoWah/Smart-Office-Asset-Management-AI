@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   detectImage,
   drawDetections,
@@ -9,9 +9,11 @@ import {
   loadImageCanvas,
   type DetectionBox,
 } from "@/lib/yolo";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 // Detection response type
 interface DetectionResponse {
+  image_id: string;
   image_url: string;
   original_image_url: string;
   detections: DetectionBox[];
@@ -22,15 +24,60 @@ interface DetectionResponse {
   };
 }
 
+interface Room {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+interface SaveableDetection {
+  id: number;
+  label: string;
+  confidence: number;
+  bbox: [number, number, number, number];
+  name: string;
+  selected: boolean;
+}
+
 export default function ScansPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [detectionResult, setDetectionResult] = useState<DetectionResponse | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const [isDownloadingModel, setIsDownloadingModel] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [saveableDetections, setSaveableDetections] = useState<SaveableDetection[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  // Check login state and fetch the user's rooms.
+  useEffect(() => {
+    supabaseBrowser.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        setIsLoggedIn(true);
+        await fetchRooms(session.access_token);
+      }
+    });
+  }, []);
+
+  const fetchRooms = async (accessToken: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/rooms`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.ok) {
+        const data: Room[] = await res.json();
+        setRooms(data);
+      }
+    } catch {
+      // Non-fatal: rooms will be empty until the user logs in.
+    }
+  };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -39,6 +86,9 @@ export default function ScansPage() {
       reader.onload = (e) => {
         setSelectedImage(e.target?.result as string);
         setDetectionResult(null);
+        setSaveableDetections([]);
+        setSelectedRoomId("");
+        setSaveMessage(null);
         setError(null);
       };
       reader.readAsDataURL(file);
@@ -53,6 +103,8 @@ export default function ScansPage() {
     setIsDownloadingModel(false);
     setError(null);
     setDetectionResult(null);
+    setSaveableDetections([]);
+    setSaveMessage(null);
 
     try {
       // Stage 1: Run YOLO detection fully in the browser (downloads the
@@ -88,12 +140,78 @@ export default function ScansPage() {
 
       const result: DetectionResponse = await response.json();
       setDetectionResult(result);
+
+      // Initialize saveable detections (all selected by default, no room).
+      setSaveableDetections(
+        result.detections.map((detection) => ({
+          id: detection.id,
+          label: detection.label,
+          confidence: detection.confidence,
+          bbox: detection.bbox,
+          name: detection.label,
+          selected: true,
+        }))
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred during detection");
     } finally {
       setIsDetecting(false);
       setIsDownloadingModel(false);
     }
+  };
+
+  const handleSaveToInventory = async () => {
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session) {
+      setSaveMessage("Please log in to save assets to your inventory.");
+      return;
+    }
+
+    const selectedItems = saveableDetections.filter((d) => d.selected);
+    if (selectedItems.length === 0 || !detectionResult) {
+      setSaveMessage("Select at least one asset to save.");
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveMessage(null);
+    setError(null);
+
+    try {
+      const items = selectedItems.map((d) => ({
+        name: d.name.trim() || d.label,
+        room_id: selectedRoomId || null,
+        image_id: detectionResult.image_id,
+        image_url: detectionResult.image_url,
+        confidence: d.confidence,
+        bbox: d.bbox,
+      }));
+
+      const res = await fetch(`${API_BASE_URL}/inventory`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ items }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to save to inventory (HTTP ${res.status})`);
+      }
+
+      setSaveMessage(`Saved ${items.length} asset(s) to your inventory.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save to inventory");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateSaveableDetection = (id: number, patch: Partial<SaveableDetection>) => {
+    setSaveableDetections((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, ...patch } : d))
+    );
   };
 
   return (
@@ -109,6 +227,18 @@ export default function ScansPage() {
             </div>
             <span className="text-2xl font-bold text-purple-800">Smart Office Asset Management AI</span>
           </Link>
+          <div className="flex items-center space-x-4">
+            <Link href="/inventory" className="px-4 py-2 text-purple-600 hover:text-purple-800 transition-colors">
+              My Inventory
+            </Link>
+            {!isLoggedIn && (
+              <Link href="/login?next=/scans">
+                <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                  Log in to save
+                </button>
+              </Link>
+            )}
+          </div>
         </div>
       </nav>
 
@@ -170,6 +300,9 @@ export default function ScansPage() {
                   onClick={() => {
                     setSelectedImage(null);
                     setDetectionResult(null);
+                    setSaveableDetections([]);
+                    setSelectedRoomId("");
+                    setSaveMessage(null);
                     if (fileInputRef.current) {
                       fileInputRef.current.value = "";
                     }
@@ -233,22 +366,86 @@ export default function ScansPage() {
             )}
 
             <h3 className="text-lg font-semibold text-purple-700 mb-4">Detected Assets:</h3>
+
+            {/* Single room selector for all checked assets */}
+            <div className="mb-4 p-4 bg-purple-100 rounded-lg flex items-center gap-3">
+              <label htmlFor="room-select" className="text-sm text-purple-800 font-medium whitespace-nowrap">
+                Assign all checked assets to room:
+              </label>
+              <select
+                id="room-select"
+                value={selectedRoomId}
+                onChange={(e) => setSelectedRoomId(e.target.value)}
+                className="flex-1 px-3 py-2 border-2 border-purple-300 rounded-lg text-purple-800 focus:border-purple-500 focus:outline-none"
+              >
+                <option value="">No room (unassigned)…</option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-4">
-              {detectionResult.detections.map((detection) => (
+              {saveableDetections.map((detection) => (
                 <div
                   key={detection.id}
-                  className="bg-purple-50 rounded-lg p-4 flex justify-between items-center"
+                  className="bg-purple-50 rounded-lg p-4 space-y-3"
                 >
-                  <span className="font-medium text-purple-800">{detection.label}</span>
-                  <span className="text-purple-600 bg-white px-3 py-1 rounded-full text-sm">
-                    {(detection.confidence * 100).toFixed(1)}% confidence
-                  </span>
+                  <div className="flex justify-between items-center">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={detection.selected}
+                        onChange={(e) => updateSaveableDetection(detection.id, { selected: e.target.checked })}
+                        className="w-4 h-4 text-purple-600 rounded"
+                      />
+                      <span className="font-medium text-purple-800">{detection.label}</span>
+                    </label>
+                    <span className="text-purple-600 bg-white px-3 py-1 rounded-full text-sm">
+                      {(detection.confidence * 100).toFixed(1)}% confidence
+                    </span>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={detection.name}
+                    onChange={(e) => updateSaveableDetection(detection.id, { name: e.target.value })}
+                    placeholder="Asset name"
+                    className="w-full px-3 py-2 border-2 border-purple-300 rounded-lg text-purple-800 focus:border-purple-500 focus:outline-none"
+                  />
                 </div>
               ))}
             </div>
 
-            {detectionResult.detections.length === 0 && (
+            {saveableDetections.length === 0 && (
               <p className="text-purple-600 text-center">No assets detected in this image.</p>
+            )}
+
+            {saveableDetections.length > 0 && (
+              <div className="mt-6 flex flex-col items-center space-y-3">
+                <button
+                  onClick={handleSaveToInventory}
+                  disabled={isSaving}
+                  className="px-8 py-3 bg-purple-600 text-white rounded-lg text-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isSaving ? "Saving…" : "Save to Inventory"}
+                </button>
+                {!isLoggedIn && (
+                  <p className="text-sm text-purple-500">
+                    You need to be logged in to save assets.{" "}
+                    <Link href="/login?next=/scans" className="text-purple-700 underline">
+                      Log in
+                    </Link>
+                  </p>
+                )}
+                {saveMessage && (
+                  <p className="text-sm text-purple-700 bg-purple-100 px-4 py-2 rounded-lg">
+                    {saveMessage}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

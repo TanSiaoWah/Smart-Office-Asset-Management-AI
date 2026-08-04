@@ -131,9 +131,10 @@ async def detect_assets(
     if model_path:
         payload.model_path = model_path
 
-    # Generate a unique base filename.
+    # Generate a unique base filename and scan ID (used as the inventory image_id).
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_id = str(uuid.uuid4())[:8]
+    scan_id = str(uuid.uuid4())
 
     # Read and store the original image.
     original_bytes = await file.read()
@@ -151,6 +152,7 @@ async def detect_assets(
 
     return JSONResponse(
         {
+            "image_id": scan_id,
             "image_url": detected_url or original_url,
             "original_image_url": original_url,
             "detections": [det.model_dump() for det in payload.detections],

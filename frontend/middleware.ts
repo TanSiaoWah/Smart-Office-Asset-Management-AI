@@ -14,10 +14,10 @@ import { createSupabaseMiddlewareClient } from "@/lib/supabase-server";
 /**
  * Route prefixes that require authentication.
  *
- * Currently empty — /scans is public per the user's request.
- * Add prefixes here (e.g. "/dashboard", "/settings") to protect them.
+ * /scans is public (detection works without login), but /inventory
+ * requires the user to be signed in so they can view their saved assets.
  */
-const PROTECTED_PREFIXES: string[] = [];
+const PROTECTED_PREFIXES: string[] = ["/inventory"];
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
