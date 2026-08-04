@@ -42,6 +42,7 @@ of memory.
 - **Client-Side Inference** - The YOLO ONNX model runs on your device (WebGPU/WASM) — no server-side ML processing
 - **Cloud Image Storage** - Original and annotated images are stored in a Supabase Storage bucket
 - **Inventory Management** - Save detected assets into your personal inventory, labeled with the room they belong to
+- **Manual Correction** - Edit detection results before saving (remove false positives, add missed assets, rename labels)
 - **Per-Date Summary with Pie Chart** - Defaults to today's assets and shows a pie chart breaking down total chairs, desks, and monitors, with a date selector to view previous days' summaries
 - **Per-Room Asset Counts** - View per-room asset counts (e.g. "Meeting Room: 4 Chairs, 1 Desk, 1 Monitor") for the selected date
 - **Scan History** - Every save-to-inventory action is recorded as a chronologically numbered scan (e.g. "Scan #1: saved Chair 1, Chair 2, Desk 1") showing how many assets, in which room, and on which date
@@ -329,6 +330,40 @@ Lists all inventory items owned by the authenticated user.
 ]
 ```
 
+### `PUT /inventory/{item_id}`
+
+Manually corrects an inventory item's name and/or room. When the room changes,
+the `room_name` snapshot is re-resolved automatically.
+
+**Headers:**
+```
+Authorization: Bearer <supabase_access_token>
+```
+
+**Request (JSON):**
+```json
+{
+  "name": "Office Chair",
+  "room_id": "a1b2c3d4-..."
+}
+```
+
+**Response:**
+```json
+{
+  "id": "c3d4e5f6-...",
+  "owner_id": "a1b2c3d4-...",
+  "name": "Office Chair",
+  "room_id": "a1b2c3d4-...",
+  "room_name": "Room A",
+  "image_id": "b2c3d4e5-...",
+  "image_url": "https://your-project.supabase.co/storage/v1/object/public/images/detected_20260729_132116_f150d6bf.jpg",
+  "confidence": 0.95,
+  "bbox": [100, 200, 300, 400],
+  "created_at": "2026-08-02T12:00:00Z"
+}
+```
+
 ### `DELETE /inventory/{item_id}`
 
 Removes an inventory item owned by the authenticated user.
@@ -358,6 +393,41 @@ Authorization: Bearer <supabase_access_token>
     "created_at": "2026-08-02T12:00:00Z"
   }
 ]
+```
+
+### `PUT /scans/{scan_id}/assets`
+
+Edits a scan's detection results (rename, remove, or add assets). Replaces the
+scan's inventory items with the edited list and updates the scan record's
+assets, count, and room snapshot.
+
+**Headers:**
+```
+Authorization: Bearer <supabase_access_token>
+```
+
+**Request (JSON):**
+```json
+{
+  "items": [
+    { "name": "Chair 1", "room_id": "a1b2c3d4-..." },
+    { "name": "Desk 1", "room_id": "a1b2c3d4-..." }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "id": "f5e6d7c8-...",
+  "image_id": "b2c3d4e5-...",
+  "image_url": "https://your-project.supabase.co/storage/v1/object/public/images/detected_20260729_132116_f150d6bf.jpg",
+  "room_id": "a1b2c3d4-...",
+  "room_name": "Room A",
+  "asset_count": 2,
+  "assets": ["Chair 1", "Desk 1"],
+  "created_at": "2026-08-02T12:00:00Z"
+}
 ```
 
 ### `PUT /scans/{scan_id}`

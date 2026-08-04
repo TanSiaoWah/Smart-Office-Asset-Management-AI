@@ -56,6 +56,13 @@ class InventoryItemOut(BaseModel):
     created_at: datetime
 
 
+class InventoryItemUpdate(BaseModel):
+    """Request body for manually correcting an inventory item."""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    room_id: Optional[uuid.UUID] = None
+
+
 class ScanOut(BaseModel):
     """Public scan-history record response schema."""
 
@@ -75,3 +82,16 @@ class ScanDateUpdate(BaseModel):
     """Request body for changing a scan's date."""
 
     date: str = Field(..., description="New scan date in YYYY-MM-DD format.")
+
+
+class ScanAssetItem(BaseModel):
+    """A single asset in a scan-assets update request."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    room_id: Optional[uuid.UUID] = None
+
+
+class ScanAssetsUpdate(BaseModel):
+    """Request body for editing a scan's detection results."""
+
+    items: List[ScanAssetItem] = Field(default_factory=list)

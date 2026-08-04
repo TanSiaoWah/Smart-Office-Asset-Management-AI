@@ -7,7 +7,15 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from .models import InventoryItem, Room, Scan
-from .schemas import InventoryItemIn, InventoryItemOut, RoomIn, RoomOut, ScanOut
+from .schemas import (
+    InventoryItemIn,
+    InventoryItemOut,
+    InventoryItemUpdate,
+    RoomIn,
+    RoomOut,
+    ScanAssetsUpdate,
+    ScanOut,
+)
 
 
 def create_room(db: Session, owner_id: uuid.UUID, body: RoomIn) -> Room:
@@ -255,6 +263,60 @@ def delete_inventory_item(
     db.commit()
 
 
+def update_inventory_item(
+    db: Session,
+    owner_id: uuid.UUID,
+    item_id: uuid.UUID,
+    body: InventoryItemUpdate,
+) -> InventoryItem:
+    """
+    Manually correct an inventory item's name and/or room.
+
+    Args:
+        db: SQLAlchemy session.
+        owner_id: UUID of the owning profile.
+        item_id: UUID of the inventory item to update.
+        body: Request containing the new name and/or room_id.
+
+    Returns:
+        The updated InventoryItem.
+
+    Raises:
+        HTTPException: If the item is not found.
+    """
+    item = (
+        db.query(InventoryItem)
+        .filter(InventoryItem.id == item_id, InventoryItem.owner_id == owner_id)
+        .first()
+    )
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Inventory item not found.",
+        )
+
+    if body.name is not None:
+        item.name = body.name.strip()
+
+    if body.room_id is not None:
+        room = (
+            db.query(Room)
+            .filter(Room.id == body.room_id, Room.owner_id == owner_id)
+            .first()
+        )
+        if room is not None:
+            item.room_id = room.id
+            item.room_name = room.name
+    elif body.room_id is None and "room_id" in body.model_dump(exclude_unset=True):
+        # Explicitly clearing the room.
+        item.room_id = None
+        item.room_name = None
+
+    db.commit()
+    db.refresh(item)
+    return item
+
+
 def list_scans(db: Session, owner_id: uuid.UUID) -> List[Scan]:
     """
     List the scan-history records owned by the given user, newest first.
@@ -325,6 +387,90 @@ def update_scan_date(
         InventoryItem.owner_id == owner_id,
         InventoryItem.image_id == scan.image_id,
     ).update({InventoryItem.created_at: new_datetime})
+
+    db.commit()
+    db.refresh(scan)
+    return scan
+
+
+def update_scan_assets(
+    db: Session,
+    owner_id: uuid.UUID,
+    scan_id: uuid.UUID,
+    body: ScanAssetsUpdate,
+) -> Scan:
+    """
+    Replace a scan's detection results and sync inventory items.
+
+    Deletes all existing inventory items sharing the scan's image_id and
+    owner, then creates new items from the request list. Updates the scan's
+    assets list, asset_count, and room snapshot.
+
+    Args:
+        db: SQLAlchemy session.
+        owner_id: UUID of the owning profile.
+        scan_id: UUID of the scan to update.
+        body: Request containing the full edited asset list.
+
+    Returns:
+        The updated Scan.
+
+    Raises:
+        HTTPException: If the scan is not found.
+    """
+    scan = (
+        db.query(Scan)
+        .filter(Scan.id == scan_id, Scan.owner_id == owner_id)
+        .first()
+    )
+    if scan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found.",
+        )
+
+    # Delete existing inventory items for this scan's image.
+    db.query(InventoryItem).filter(
+        InventoryItem.owner_id == owner_id,
+        InventoryItem.image_id == scan.image_id,
+    ).delete()
+
+    # Create new inventory items from the edited list.
+    created: List[InventoryItem] = []
+    for asset in body.items:
+        room_name = None
+        if asset.room_id is not None:
+            room = (
+                db.query(Room)
+                .filter(Room.id == asset.room_id, Room.owner_id == owner_id)
+                .first()
+            )
+            if room is not None:
+                room_name = room.name
+
+        inventory_item = InventoryItem(
+            owner_id=owner_id,
+            name=asset.name.strip(),
+            room_id=asset.room_id,
+            room_name=room_name,
+            image_id=scan.image_id,
+            image_url=scan.image_url,
+            created_at=scan.created_at,
+        )
+        db.add(inventory_item)
+        created.append(inventory_item)
+
+    # Update the scan record to reflect the edited assets.
+    asset_names = [asset.name.strip() for asset in body.items]
+    scan.assets = asset_names
+    scan.asset_count = len(asset_names)
+    if created:
+        first = created[0]
+        scan.room_id = first.room_id
+        scan.room_name = first.room_name
+    else:
+        scan.room_id = None
+        scan.room_name = None
 
     db.commit()
     db.refresh(scan)

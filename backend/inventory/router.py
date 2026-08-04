@@ -11,8 +11,10 @@ from database import get_db
 from .schemas import (
     InventoryItemCreate,
     InventoryItemOut,
+    InventoryItemUpdate,
     RoomIn,
     RoomOut,
+    ScanAssetsUpdate,
     ScanDateUpdate,
     ScanOut,
 )
@@ -28,6 +30,8 @@ from .service import (
     to_inventory_out,
     to_room_out,
     to_scan_out,
+    update_inventory_item,
+    update_scan_assets,
     update_scan_date,
 )
 
@@ -177,6 +181,32 @@ async def update_scan_date_endpoint(
     return to_scan_out(scan)
 
 
+@router.put("/scans/{scan_id}/assets", response_model=ScanOut)
+async def update_scan_assets_endpoint(
+    scan_id: uuid.UUID,
+    body: ScanAssetsUpdate,
+    profile: Annotated[ProfileOut, Depends(get_current_profile)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ScanOut:
+    """
+    Edit a scan's detection results (rename, remove, add assets).
+
+    Replaces the scan's inventory items with the edited list and updates
+    the scan record's assets, count, and room snapshot.
+
+    Args:
+        scan_id: UUID of the scan to update.
+        body: Request containing the full edited asset list.
+        profile: Authenticated user's profile.
+        db: SQLAlchemy session.
+
+    Returns:
+        The updated ScanOut.
+    """
+    scan = update_scan_assets(db, profile.id, scan_id, body)
+    return to_scan_out(scan)
+
+
 @router.get("/inventory", response_model=List[InventoryItemOut])
 async def list_inventory_endpoint(
     profile: Annotated[ProfileOut, Depends(get_current_profile)],
@@ -194,6 +224,29 @@ async def list_inventory_endpoint(
     """
     items = list_inventory_items(db, profile.id)
     return [to_inventory_out(item) for item in items]
+
+
+@router.put("/inventory/{item_id}", response_model=InventoryItemOut)
+async def update_inventory_endpoint(
+    item_id: uuid.UUID,
+    body: InventoryItemUpdate,
+    profile: Annotated[ProfileOut, Depends(get_current_profile)],
+    db: Annotated[Session, Depends(get_db)],
+) -> InventoryItemOut:
+    """
+    Manually correct an inventory item's name and/or room.
+
+    Args:
+        item_id: UUID of the inventory item to update.
+        body: Request containing the new name and/or room_id.
+        profile: Authenticated user's profile.
+        db: SQLAlchemy session.
+
+    Returns:
+        The updated InventoryItemOut.
+    """
+    item = update_inventory_item(db, profile.id, item_id, body)
+    return to_inventory_out(item)
 
 
 @router.delete("/inventory/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

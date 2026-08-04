@@ -33,8 +33,8 @@ interface Room {
 interface SaveableDetection {
   id: number;
   label: string;
-  confidence: number;
-  bbox: [number, number, number, number];
+  confidence: number | null;
+  bbox: [number, number, number, number] | null;
   name: string;
   selected: boolean;
 }
@@ -51,6 +51,8 @@ export default function ScansPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAddingManual, setIsAddingManual] = useState(false);
+  const [manualAssetName, setManualAssetName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -212,6 +214,32 @@ export default function ScansPage() {
     setSaveableDetections((prev) =>
       prev.map((d) => (d.id === id ? { ...d, ...patch } : d))
     );
+  };
+
+  const handleRemoveDetection = (id: number) => {
+    setSaveableDetections((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const handleAddManualAsset = () => {
+    const name = manualAssetName.trim();
+    if (!name) return;
+    const nextId =
+      saveableDetections.length > 0
+        ? Math.max(...saveableDetections.map((d) => d.id)) + 1
+        : 0;
+    setSaveableDetections((prev) => [
+      ...prev,
+      {
+        id: nextId,
+        label: name,
+        confidence: null,
+        bbox: null,
+        name,
+        selected: true,
+      },
+    ]);
+    setManualAssetName("");
+    setIsAddingManual(false);
   };
 
   return (
@@ -403,9 +431,26 @@ export default function ScansPage() {
                       />
                       <span className="font-medium text-purple-800">{detection.label}</span>
                     </label>
-                    <span className="text-purple-600 bg-white px-3 py-1 rounded-full text-sm">
-                      {(detection.confidence * 100).toFixed(1)}% confidence
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {detection.confidence !== null ? (
+                        <span className="text-purple-600 bg-white px-3 py-1 rounded-full text-sm">
+                          {(detection.confidence * 100).toFixed(1)}% confidence
+                        </span>
+                      ) : (
+                        <span className="text-purple-500 bg-white px-3 py-1 rounded-full text-sm">
+                          Manual
+                        </span>
+                      )}
+                      <button
+                        onClick={() => handleRemoveDetection(detection.id)}
+                        className="text-red-500 hover:text-red-700 transition-colors"
+                        title="Remove asset"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
 
                   <input
@@ -419,8 +464,50 @@ export default function ScansPage() {
               ))}
             </div>
 
+            {/* Add manual asset */}
+            <div className="mt-4">
+              {isAddingManual ? (
+                <div className="flex items-center gap-3 bg-purple-100 rounded-lg p-4">
+                  <input
+                    type="text"
+                    value={manualAssetName}
+                    onChange={(e) => setManualAssetName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddManualAsset();
+                    }}
+                    placeholder="Asset name (e.g. Whiteboard)"
+                    className="flex-1 px-3 py-2 border-2 border-purple-300 rounded-lg text-purple-800 focus:border-purple-500 focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleAddManualAsset}
+                    disabled={!manualAssetName.trim()}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsAddingManual(false);
+                      setManualAssetName("");
+                    }}
+                    className="px-4 py-2 bg-white text-purple-600 rounded-lg text-sm border-2 border-purple-300 hover:bg-purple-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsAddingManual(true)}
+                  className="px-4 py-2 bg-white text-purple-600 rounded-lg text-sm border-2 border-purple-300 hover:bg-purple-50 transition-colors"
+                >
+                  + Add Asset
+                </button>
+              )}
+            </div>
+
             {saveableDetections.length === 0 && (
-              <p className="text-purple-600 text-center">No assets detected in this image.</p>
+              <p className="text-purple-600 text-center mt-4">No assets in this scan. Add one manually above.</p>
             )}
 
             {saveableDetections.length > 0 && (

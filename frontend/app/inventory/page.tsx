@@ -113,6 +113,14 @@ export default function InventoryPage() {
   const [editingScanDate, setEditingScanDate] = useState("");
   const [isUpdatingScanDate, setIsUpdatingScanDate] = useState(false);
 
+  // Scan assets editing state
+  const [editingAssetsScanId, setEditingAssetsScanId] = useState<string | null>(null);
+  const [editingAssets, setEditingAssets] = useState<{ name: string }[]>([]);
+  const [editingAssetsRoomId, setEditingAssetsRoomId] = useState("");
+  const [isAddingScanAsset, setIsAddingScanAsset] = useState(false);
+  const [newScanAssetName, setNewScanAssetName] = useState("");
+  const [isUpdatingScanAssets, setIsUpdatingScanAssets] = useState(false);
+
   const fetchData = useCallback(async (accessToken: string) => {
     try {
       const [itemsRes, roomsRes, scansRes] = await Promise.all([
@@ -280,6 +288,78 @@ export default function InventoryPage() {
       setError(err instanceof Error ? err.message : "Failed to update scan date");
     } finally {
       setIsUpdatingScanDate(false);
+    }
+  };
+
+  const handleStartEditScanAssets = (scan: ScanRecord) => {
+    setEditingAssetsScanId(scan.id);
+    setEditingAssets(scan.assets.map((name) => ({ name })));
+    setEditingAssetsRoomId(scan.room_id || "");
+    setIsAddingScanAsset(false);
+    setNewScanAssetName("");
+  };
+
+  const handleCancelEditScanAssets = () => {
+    setEditingAssetsScanId(null);
+    setEditingAssets([]);
+    setEditingAssetsRoomId("");
+    setIsAddingScanAsset(false);
+    setNewScanAssetName("");
+  };
+
+  const handleUpdateScanAssetName = (index: number, name: string) => {
+    setEditingAssets((prev) =>
+      prev.map((a, i) => (i === index ? { ...a, name } : a))
+    );
+  };
+
+  const handleRemoveScanAsset = (index: number) => {
+    setEditingAssets((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddScanAsset = () => {
+    const name = newScanAssetName.trim();
+    if (!name) return;
+    setEditingAssets((prev) => [...prev, { name }]);
+    setNewScanAssetName("");
+    setIsAddingScanAsset(false);
+  };
+
+  const handleSaveScanAssets = async (scanId: string) => {
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session) return;
+
+    setIsUpdatingScanAssets(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/scans/${scanId}/assets`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          items: editingAssets.map((a) => ({
+            name: a.name.trim(),
+            room_id: editingAssetsRoomId || null,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.detail || `Failed to update scan assets (HTTP ${res.status})`);
+      }
+
+      handleCancelEditScanAssets();
+      setSuccessMsg("Scan assets updated successfully!");
+      await fetchData(session.access_token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update scan assets");
+    } finally {
+      setIsUpdatingScanAssets(false);
     }
   };
 
@@ -619,81 +699,195 @@ export default function InventoryPage() {
                 const scanNumber = scans.length - index;
                 const roomLabel = scan.room_name || "Unassigned";
                 return (
-                  <div key={scan.id} className="bg-purple-50 rounded-xl p-5 flex flex-col md:flex-row md:items-center gap-3">
-                    <div className="md:w-24 shrink-0">
-                      <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-bold">
-                        Scan #{scanNumber}
-                      </span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-purple-800 font-medium">
-                        {scan.assets.join(", ") || "No assets"}
-                      </p>
-                      <p className="text-sm text-purple-600">
-                        {scan.asset_count} {scan.asset_count === 1 ? "asset" : "assets"} •{" "}
-                        {roomLabel}
-                      </p>
-                    </div>
-                    <div className="md:w-40 shrink-0 text-left md:text-right">
-                      {editingScanId === scan.id ? (
-                        <div className="flex flex-col items-end gap-2">
-                          <input
-                            type="date"
-                            value={editingScanDate}
-                            max={toDateInputValue(new Date())}
-                            onChange={(e) => setEditingScanDate(e.target.value)}
-                            className="px-2 py-1 border-2 border-purple-300 rounded-lg text-purple-800 focus:border-purple-500 focus:outline-none text-sm"
-                          />
-                          <div className="flex gap-2">
+                  <div key={scan.id} className="bg-purple-50 rounded-xl p-5">
+                    <div className="flex flex-col md:flex-row md:items-center gap-3">
+                      <div className="md:w-24 shrink-0">
+                        <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+                          Scan #{scanNumber}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-purple-800 font-medium">
+                          {scan.assets.join(", ") || "No assets"}
+                        </p>
+                        <p className="text-sm text-purple-600">
+                          {scan.asset_count} {scan.asset_count === 1 ? "asset" : "assets"} •{" "}
+                          {roomLabel}
+                        </p>
+                      </div>
+                      <div className="md:w-48 shrink-0 text-left md:text-right">
+                        {editingScanId === scan.id ? (
+                          <div className="flex flex-col items-end gap-2">
+                            <input
+                              type="date"
+                              value={editingScanDate}
+                              max={toDateInputValue(new Date())}
+                              onChange={(e) => setEditingScanDate(e.target.value)}
+                              className="px-2 py-1 border-2 border-purple-300 rounded-lg text-purple-800 focus:border-purple-500 focus:outline-none text-sm"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleUpdateScanDate(scan.id)}
+                                disabled={isUpdatingScanDate || !editingScanDate}
+                                className="px-3 py-1 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {isUpdatingScanDate ? "Saving…" : "Save"}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingScanId(null);
+                                  setEditingScanDate("");
+                                }}
+                                className="px-3 py-1 bg-white text-purple-600 rounded-lg text-sm border-2 border-purple-300 hover:bg-purple-50 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-2">
+                            <div>
+                              <p className="text-sm text-purple-600">
+                                {new Date(scan.created_at).toLocaleDateString()}
+                              </p>
+                              <p className="text-xs text-purple-400">
+                                {new Date(scan.created_at).toLocaleTimeString()}
+                              </p>
+                            </div>
                             <button
-                              onClick={() => handleUpdateScanDate(scan.id)}
-                              disabled={isUpdatingScanDate || !editingScanDate}
-                              className="px-3 py-1 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              onClick={() => {
+                                setEditingScanId(scan.id);
+                                setEditingScanDate(toDateInputValue(new Date(scan.created_at)));
+                              }}
+                              className="text-purple-600 hover:text-purple-800 transition-colors"
+                              title="Change scan date"
                             >
-                              {isUpdatingScanDate ? "Saving…" : "Save"}
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleStartEditScanAssets(scan)}
+                              className="text-purple-600 hover:text-purple-800 transition-colors"
+                              title="Edit detection results"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Inline asset editor */}
+                    {editingAssetsScanId === scan.id && (
+                      <div className="mt-4 pt-4 border-t border-purple-200 space-y-3">
+                        {/* Room selector for all assets */}
+                        <div className="flex items-center gap-3">
+                          <label className="text-sm text-purple-700 font-medium whitespace-nowrap">
+                            Room:
+                          </label>
+                          <select
+                            value={editingAssetsRoomId}
+                            onChange={(e) => setEditingAssetsRoomId(e.target.value)}
+                            className="flex-1 px-3 py-2 border-2 border-purple-300 rounded-lg text-purple-800 focus:border-purple-500 focus:outline-none text-sm"
+                          >
+                            <option value="">No room (unassigned)…</option>
+                            {rooms.map((room) => (
+                              <option key={room.id} value={room.id}>
+                                {room.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Editable asset list */}
+                        {editingAssets.map((asset, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={asset.name}
+                              onChange={(e) => handleUpdateScanAssetName(idx, e.target.value)}
+                              className="flex-1 px-3 py-2 border-2 border-purple-300 rounded-lg text-purple-800 focus:border-purple-500 focus:outline-none text-sm"
+                            />
+                            <button
+                              onClick={() => handleRemoveScanAsset(idx)}
+                              className="text-red-500 hover:text-red-700 transition-colors"
+                              title="Remove asset"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+
+                        {/* Add asset */}
+                        {isAddingScanAsset ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={newScanAssetName}
+                              onChange={(e) => setNewScanAssetName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleAddScanAsset();
+                              }}
+                              placeholder="Asset name (e.g. Whiteboard)"
+                              className="flex-1 px-3 py-2 border-2 border-purple-300 rounded-lg text-purple-800 focus:border-purple-500 focus:outline-none text-sm"
+                              autoFocus
+                            />
+                            <button
+                              onClick={handleAddScanAsset}
+                              disabled={!newScanAssetName.trim()}
+                              className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              Add
                             </button>
                             <button
                               onClick={() => {
-                                setEditingScanId(null);
-                                setEditingScanDate("");
+                                setIsAddingScanAsset(false);
+                                setNewScanAssetName("");
                               }}
-                              className="px-3 py-1 bg-white text-purple-600 rounded-lg text-sm border-2 border-purple-300 hover:bg-purple-50 transition-colors"
+                              className="px-3 py-2 bg-white text-purple-600 rounded-lg text-sm border-2 border-purple-300 hover:bg-purple-50 transition-colors"
                             >
                               Cancel
                             </button>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-end gap-2">
-                          <div>
-                            <p className="text-sm text-purple-600">
-                              {new Date(scan.created_at).toLocaleDateString()}
-                            </p>
-                            <p className="text-xs text-purple-400">
-                              {new Date(scan.created_at).toLocaleTimeString()}
-                            </p>
-                          </div>
+                        ) : (
                           <button
-                            onClick={() => {
-                              setEditingScanId(scan.id);
-                              setEditingScanDate(toDateInputValue(new Date(scan.created_at)));
-                            }}
-                            className="text-purple-600 hover:text-purple-800 transition-colors"
-                            title="Change scan date"
+                            onClick={() => setIsAddingScanAsset(true)}
+                            className="px-3 py-1.5 bg-white text-purple-600 rounded-lg text-sm border-2 border-purple-300 hover:bg-purple-50 transition-colors"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
+                            + Add Asset
+                          </button>
+                        )}
+
+                        {/* Save / Cancel */}
+                        <div className="flex gap-2 pt-2">
+                          <button
+                            onClick={() => handleSaveScanAssets(scan.id)}
+                            disabled={isUpdatingScanAssets}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {isUpdatingScanAssets ? "Saving…" : "Save Changes"}
+                          </button>
+                          <button
+                            onClick={handleCancelEditScanAssets}
+                            className="px-4 py-2 bg-white text-purple-600 rounded-lg text-sm border-2 border-purple-300 hover:bg-purple-50 transition-colors"
+                          >
+                            Cancel
                           </button>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           )}
         </div>
+
       </div>
     </div>
   );
