@@ -237,13 +237,20 @@ erDiagram
 
 ## Screenshots
 
-> 📌 Screenshots will be added soon. Below are the key pages:
+### Landing Page
+Hero section with "Start Scanning" and "View Inventory" buttons.
 
-| Page | Description |
-|------|-------------|
-| **Landing Page** (docs/mainpage.png) | Hero section with "Start Scanning" and "View Inventory" buttons |
-| **Scan Page** (docs/scans.png) | Image upload, YOLO detection with bounding boxes, editable asset list |
-| **Inventory Page** (docs/inventory) | Pie chart summary, per-room cards, scan history with edit |
+![Landing Page](docs/mainpage.png)
+
+### Scan Page
+Image upload, YOLO detection with bounding boxes, and editable asset list with manual correction.
+
+![Scan Page](docs/scans.png)
+
+### Inventory Page
+Per-date pie chart summary, per-room asset counts, and scan history with editable dates and detection results.
+
+![Inventory Page](docs/inventory.png)
 
 ---
 
