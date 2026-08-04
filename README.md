@@ -241,16 +241,9 @@ erDiagram
 
 | Page | Description |
 |------|-------------|
-| **Landing Page** (`/`) | Hero section with "Start Scanning" and "View Inventory" buttons |
-| **Scan Page** (`/scans`) | Image upload, YOLO detection with bounding boxes, editable asset list |
-| **Inventory Page** (`/inventory`) | Pie chart summary, per-room cards, scan history with edit |
-| **Login Page** (`/login`) | Google SSO sign-in |
-
-<!-- Uncomment when screenshots are added:
-![Landing Page](docs/landing-page.png)
-![Scan Page](docs/scan-page.png)
-![Inventory Page](docs/inventory-page.png)
--->
+| **Landing Page** (docs/mainpage.png) | Hero section with "Start Scanning" and "View Inventory" buttons |
+| **Scan Page** (docs/scans.png) | Image upload, YOLO detection with bounding boxes, editable asset list |
+| **Inventory Page** (docs/inventory) | Pie chart summary, per-room cards, scan history with edit |
 
 ---
 
@@ -294,7 +287,6 @@ erDiagram
 cd backend
 python -m venv office
 office\Scripts\activate        # Windows
-# source office/bin/activate   # macOS/Linux
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
