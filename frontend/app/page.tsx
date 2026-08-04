@@ -37,9 +37,11 @@ export default function Home() {
                 Start Scanning Now
               </button>
             </Link>
-            <button className="px-8 py-3 bg-white text-purple-600 rounded-lg text-lg font-semibold border-2 border-purple-300 hover:bg-purple-50 transform hover:scale-105 transition-all">
-              Watch Demo
-            </button>
+            <Link href="/inventory">
+              <button className="px-8 py-3 bg-white text-purple-600 rounded-lg text-lg font-semibold border-2 border-purple-300 hover:bg-purple-50 transform hover:scale-105 transition-all">
+                View Inventory
+              </button>
+            </Link>
           </div>
         </div>
       </section>
@@ -127,64 +129,24 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="bg-purple-600 rounded-3xl p-12 text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">
-            Ready to Revolutionize Your Office Asset Management?
-          </h2>
-          <p className="text-purple-100 text-lg mb-8 max-w-2xl mx-auto">
-            Join thousands of users who have transformed their office asset tracking with Smart Office Asset Management AI.
-          </p>
-          <button className="px-8 py-4 bg-white text-purple-600 rounded-lg text-lg font-semibold hover:bg-purple-50 transform hover:scale-105 transition-all shadow-lg">
-            Start Free Trial
-          </button>
-        </div>
-      </section>
-
       {/* Footer */}
       <footer className="bg-purple-900 text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
-                  </svg>
-                </div>
-                <span className="text-xl font-bold">Smart Office Asset Management AI</span>
+          <div className="flex flex-col items-center text-center">
+            <div className="flex items-center space-x-2 mb-4">
+              <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
+                </svg>
               </div>
-              <p className="text-purple-300">
-                AI-powered office asset management for a smarter, efficient workplace.
-              </p>
+              <span className="text-xl font-bold">Smart Office Asset Management AI</span>
             </div>
-            <div>
-              <h4 className="font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-purple-300">
-                <li><a href="#" className="hover:text-white transition-colors">Features</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">API</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-purple-300">
-                <li><a href="#" className="hover:text-white transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Legal</h4>
-              <ul className="space-y-2 text-purple-300">
-                <li><a href="#" className="hover:text-white transition-colors">Privacy</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Terms</a></li>
-              </ul>
-            </div>
+            <p className="text-purple-300 mb-8">
+              AI-powered office asset management for a smarter, efficient workplace.
+            </p>
           </div>
-          <div className="border-t border-purple-800 mt-8 pt-8 text-center text-purple-300">
-            © 2024 Smart Office Asset Management AI. All rights reserved.
+          <div className="border-t border-purple-800 pt-8 text-center text-purple-300">
+            © 2026 Smart Office Asset Management AI. All rights reserved.
           </div>
         </div>
       </footer>
