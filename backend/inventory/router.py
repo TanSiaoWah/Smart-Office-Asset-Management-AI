@@ -8,7 +8,14 @@ from sqlalchemy.orm import Session
 from auth.dependencies import get_current_profile
 from auth.schemas import ProfileOut
 from database import get_db
-from .schemas import InventoryItemCreate, InventoryItemOut, RoomIn, RoomOut, ScanOut
+from .schemas import (
+    InventoryItemCreate,
+    InventoryItemOut,
+    RoomIn,
+    RoomOut,
+    ScanDateUpdate,
+    ScanOut,
+)
 from .service import (
     create_inventory_items,
     create_room,
@@ -21,6 +28,7 @@ from .service import (
     to_inventory_out,
     to_room_out,
     to_scan_out,
+    update_scan_date,
 )
 
 router = APIRouter(tags=["inventory"])
@@ -144,6 +152,29 @@ async def list_scans_endpoint(
     """
     scans = list_scans(db, profile.id)
     return [to_scan_out(scan) for scan in scans]
+
+
+@router.put("/scans/{scan_id}", response_model=ScanOut)
+async def update_scan_date_endpoint(
+    scan_id: uuid.UUID,
+    body: ScanDateUpdate,
+    profile: Annotated[ProfileOut, Depends(get_current_profile)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ScanOut:
+    """
+    Change a scan's date and move its inventory items to that date.
+
+    Args:
+        scan_id: UUID of the scan to update.
+        body: Request containing the new date.
+        profile: Authenticated user's profile.
+        db: SQLAlchemy session.
+
+    Returns:
+        The updated ScanOut.
+    """
+    scan = update_scan_date(db, profile.id, scan_id, body.date)
+    return to_scan_out(scan)
 
 
 @router.get("/inventory", response_model=List[InventoryItemOut])

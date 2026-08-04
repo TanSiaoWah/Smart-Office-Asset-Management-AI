@@ -43,11 +43,61 @@ interface ScanRecord {
   created_at: string;
 }
 
+interface TypeCounts {
+  chairs: number;
+  desks: number;
+  monitors: number;
+  other: number;
+  total: number;
+}
+
+/** Return a local date string in YYYY-MM-DD format for the given Date. */
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Return true if the item's created_at falls on the given YYYY-MM-DD date (local time). */
+function isOnDate(item: InventoryItem, dateStr: string): boolean {
+  const created = new Date(item.created_at);
+  return toDateInputValue(created) === dateStr;
+}
+
+/** Classify an asset name into a type bucket. */
+type AssetType = "chairs" | "desks" | "monitors" | "other";
+
+function classifyAsset(name: string): AssetType {
+  const lower = name.toLowerCase();
+  if (lower.includes("chair")) return "chairs";
+  if (lower.includes("desk")) return "desks";
+  if (lower.includes("monitor")) return "monitors";
+  return "other";
+}
+
+const TYPE_COLORS: Record<AssetType, string> = {
+  chairs: "#a855f7", // purple-500
+  desks: "#7e22ce", // purple-800
+  monitors: "#d946ef", // fuchsia-500
+  other: "#c4b5fd", // purple-300
+};
+
+const TYPE_LABELS: Record<AssetType, string> = {
+  chairs: "Chairs",
+  desks: "Desks",
+  monitors: "Monitors",
+  other: "Other",
+};
+
 export default function InventoryPage() {
   const router = useRouter();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [scans, setScans] = useState<ScanRecord[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    toDateInputValue(new Date())
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -57,6 +107,11 @@ export default function InventoryPage() {
   const [isAddingRoom, setIsAddingRoom] = useState(false);
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
   const [editingRoomName, setEditingRoomName] = useState("");
+
+  // Scan date editing state
+  const [editingScanId, setEditingScanId] = useState<string | null>(null);
+  const [editingScanDate, setEditingScanDate] = useState("");
+  const [isUpdatingScanDate, setIsUpdatingScanDate] = useState(false);
 
   const fetchData = useCallback(async (accessToken: string) => {
     try {
@@ -194,11 +249,48 @@ export default function InventoryPage() {
     router.replace("/");
   };
 
-  // Aggregate items into per-room summaries.
+  const handleUpdateScanDate = async (scanId: string) => {
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session || !editingScanDate) return;
+
+    setIsUpdatingScanDate(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/scans/${scanId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ date: editingScanDate }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.detail || `Failed to update scan date (HTTP ${res.status})`);
+      }
+
+      setEditingScanId(null);
+      setEditingScanDate("");
+      setSuccessMsg("Scan date updated. The summary now reflects the new date.");
+      await fetchData(session.access_token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update scan date");
+    } finally {
+      setIsUpdatingScanDate(false);
+    }
+  };
+
+  // Items saved on the selected date.
+  const filteredItems = items.filter((item) => isOnDate(item, selectedDate));
+
+  // Aggregate filtered items into per-room summaries.
   const buildRoomSummaries = (): RoomSummary[] => {
     const roomMap = new Map<string, Map<string, number>>();
 
-    for (const item of items) {
+    for (const item of filteredItems) {
       const roomName = item.room_name || "Unassigned";
       if (!roomMap.has(roomName)) {
         roomMap.set(roomName, new Map());
@@ -224,8 +316,51 @@ export default function InventoryPage() {
     });
   };
 
+  // Count filtered items by asset type.
+  const buildTypeCounts = (): TypeCounts => {
+    const counts: TypeCounts = { chairs: 0, desks: 0, monitors: 0, other: 0, total: 0 };
+    for (const item of filteredItems) {
+      counts[classifyAsset(item.name)] += 1;
+      counts.total += 1;
+    }
+    return counts;
+  };
+
   const roomSummaries = buildRoomSummaries();
-  const grandTotal = items.length;
+  const typeCounts = buildTypeCounts();
+
+  // Build the conic-gradient pie chart from type counts.
+  const buildPieGradient = (): string => {
+    const { chairs, desks, monitors, other, total } = typeCounts;
+    if (total === 0) {
+      return "conic-gradient(#e9d5ff 0deg 360deg)";
+    }
+    let cursor = 0;
+    const stops: string[] = [];
+    const slices: { count: number; color: string }[] = [
+      { count: chairs, color: TYPE_COLORS.chairs },
+      { count: desks, color: TYPE_COLORS.desks },
+      { count: monitors, color: TYPE_COLORS.monitors },
+      { count: other, color: TYPE_COLORS.other },
+    ];
+    for (const slice of slices) {
+      if (slice.count === 0) continue;
+      const from = Math.round((cursor / total) * 360);
+      cursor += slice.count;
+      const to = Math.round((cursor / total) * 360);
+      stops.push(`${slice.color} ${from}deg ${to}deg`);
+    }
+    return `conic-gradient(${stops.join(", ")})`;
+  };
+
+  const legendEntries: { label: string; color: string; count: number }[] = [
+    { label: TYPE_LABELS.chairs, color: TYPE_COLORS.chairs, count: typeCounts.chairs },
+    { label: TYPE_LABELS.desks, color: TYPE_COLORS.desks, count: typeCounts.desks },
+    { label: TYPE_LABELS.monitors, color: TYPE_COLORS.monitors, count: typeCounts.monitors },
+    { label: TYPE_LABELS.other, color: TYPE_COLORS.other, count: typeCounts.other },
+  ];
+
+  const isToday = selectedDate === toDateInputValue(new Date());
 
   if (isLoading) {
     return (
@@ -372,19 +507,75 @@ export default function InventoryPage() {
 
         {/* Inventory Summary */}
         <div className="bg-white/90 rounded-2xl shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-purple-800 mb-6">Inventory Summary</h2>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <h2 className="text-2xl font-bold text-purple-800">Inventory Summary</h2>
 
-          {/* Grand Total */}
-          <div className="bg-purple-600 rounded-xl p-6 text-center mb-8">
-            <p className="text-purple-200 text-sm font-medium uppercase tracking-wide mb-1">
-              Total Assets
-            </p>
-            <p className="text-5xl font-bold text-white">{grandTotal}</p>
+            {/* Date selection */}
+            <div className="flex items-center gap-3">
+              <label htmlFor="summary-date" className="text-sm text-purple-700 font-medium">
+                Date:
+              </label>
+              <input
+                type="date"
+                id="summary-date"
+                value={selectedDate}
+                max={toDateInputValue(new Date())}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-3 py-2 border-2 border-purple-300 rounded-lg text-purple-800 focus:border-purple-500 focus:outline-none"
+              />
+              {!isToday && (
+                <button
+                  onClick={() => setSelectedDate(toDateInputValue(new Date()))}
+                  className="px-3 py-2 bg-white text-purple-600 rounded-lg text-sm border-2 border-purple-300 hover:bg-purple-50 transition-colors"
+                >
+                  Today
+                </button>
+              )}
+            </div>
           </div>
 
+          {/* Pie chart */}
+          <div className="flex flex-col md:flex-row items-center gap-8 mb-8">
+            <div
+              className="relative w-52 h-52 rounded-full"
+              style={{ background: buildPieGradient() }}
+            >
+              <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center">
+                <span className="text-3xl font-bold text-purple-800">{typeCounts.total}</span>
+                <span className="text-xs text-purple-500">assets</span>
+              </div>
+            </div>
+
+            {/* Legend */}
+            <div className="flex-1 w-full space-y-2">
+              {legendEntries.map((entry) => (
+                <div key={entry.label} className="flex items-center justify-between bg-purple-50 rounded-lg px-4 py-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: entry.color }}
+                    />
+                    <span className="text-purple-800 font-medium">{entry.label}</span>
+                  </div>
+                  <span className="text-purple-600 font-semibold">{entry.count}</span>
+                </div>
+              ))}
+              {typeCounts.total === 0 && (
+                <p className="text-sm text-purple-500 text-center">
+                  No assets saved on this date.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Per-room summary for the selected date */}
           {roomSummaries.length === 0 ? (
             <p className="text-purple-600 text-center">
-              No assets saved yet.{" "}
+              No assets saved for{" "}
+              <span className="font-medium">
+                {new Date(`${selectedDate}T00:00:00`).toLocaleDateString()}
+              </span>
+              .{" "}
               <Link href="/scans" className="text-purple-700 underline">
                 Scan an image
               </Link>{" "}
@@ -444,12 +635,58 @@ export default function InventoryPage() {
                       </p>
                     </div>
                     <div className="md:w-40 shrink-0 text-left md:text-right">
-                      <p className="text-sm text-purple-600">
-                        {new Date(scan.created_at).toLocaleDateString()}
-                      </p>
-                      <p className="text-xs text-purple-400">
-                        {new Date(scan.created_at).toLocaleTimeString()}
-                      </p>
+                      {editingScanId === scan.id ? (
+                        <div className="flex flex-col items-end gap-2">
+                          <input
+                            type="date"
+                            value={editingScanDate}
+                            max={toDateInputValue(new Date())}
+                            onChange={(e) => setEditingScanDate(e.target.value)}
+                            className="px-2 py-1 border-2 border-purple-300 rounded-lg text-purple-800 focus:border-purple-500 focus:outline-none text-sm"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleUpdateScanDate(scan.id)}
+                              disabled={isUpdatingScanDate || !editingScanDate}
+                              className="px-3 py-1 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {isUpdatingScanDate ? "Saving…" : "Save"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingScanId(null);
+                                setEditingScanDate("");
+                              }}
+                              className="px-3 py-1 bg-white text-purple-600 rounded-lg text-sm border-2 border-purple-300 hover:bg-purple-50 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-2">
+                          <div>
+                            <p className="text-sm text-purple-600">
+                              {new Date(scan.created_at).toLocaleDateString()}
+                            </p>
+                            <p className="text-xs text-purple-400">
+                              {new Date(scan.created_at).toLocaleTimeString()}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setEditingScanId(scan.id);
+                              setEditingScanDate(toDateInputValue(new Date(scan.created_at)));
+                            }}
+                            className="text-purple-600 hover:text-purple-800 transition-colors"
+                            title="Change scan date"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

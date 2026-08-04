@@ -69,3 +69,9 @@ class ScanOut(BaseModel):
     asset_count: int
     assets: List[str]
     created_at: datetime
+
+
+class ScanDateUpdate(BaseModel):
+    """Request body for changing a scan's date."""
+
+    date: str = Field(..., description="New scan date in YYYY-MM-DD format.")

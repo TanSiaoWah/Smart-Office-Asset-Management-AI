@@ -1,5 +1,6 @@
 """Business logic for rooms, inventory items, and scan history."""
 import uuid
+from datetime import datetime, time, timezone
 from typing import List
 
 from fastapi import HTTPException, status
@@ -271,6 +272,63 @@ def list_scans(db: Session, owner_id: uuid.UUID) -> List[Scan]:
         .order_by(Scan.created_at.desc())
         .all()
     )
+
+
+def update_scan_date(
+    db: Session,
+    owner_id: uuid.UUID,
+    scan_id: uuid.UUID,
+    new_date: str,
+) -> Scan:
+    """
+    Update a scan's date and the dates of its associated inventory items.
+
+    Inventory items sharing the same image_id and owner are moved to the
+    new date so the per-date summary stays consistent with the scan history.
+
+    Args:
+        db: SQLAlchemy session.
+        owner_id: UUID of the owning profile.
+        scan_id: UUID of the scan to update.
+        new_date: New scan date in YYYY-MM-DD format.
+
+    Returns:
+        The updated Scan.
+
+    Raises:
+        HTTPException: If the scan is not found or the date is invalid.
+    """
+    scan = (
+        db.query(Scan)
+        .filter(Scan.id == scan_id, Scan.owner_id == owner_id)
+        .first()
+    )
+    if scan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found.",
+        )
+
+    try:
+        year, month, day = (int(part) for part in new_date.split("-"))
+        new_datetime = datetime(
+            year, month, day, hour=12, tzinfo=timezone.utc
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Expected YYYY-MM-DD.",
+        ) from exc
+
+    scan.created_at = new_datetime
+    db.query(InventoryItem).filter(
+        InventoryItem.owner_id == owner_id,
+        InventoryItem.image_id == scan.image_id,
+    ).update({InventoryItem.created_at: new_datetime})
+
+    db.commit()
+    db.refresh(scan)
+    return scan
 
 
 def to_scan_out(scan: Scan) -> ScanOut:

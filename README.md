@@ -42,7 +42,8 @@ of memory.
 - **Client-Side Inference** - The YOLO ONNX model runs on your device (WebGPU/WASM) — no server-side ML processing
 - **Cloud Image Storage** - Original and annotated images are stored in a Supabase Storage bucket
 - **Inventory Management** - Save detected assets into your personal inventory, labeled with the room they belong to
-- **Aggregated Inventory Summary** - View per-room asset counts (e.g. "Meeting Room: 4 Chairs, 1 Desk, 1 Monitor") plus a grand total of all assets
+- **Per-Date Summary with Pie Chart** - Defaults to today's assets and shows a pie chart breaking down total chairs, desks, and monitors, with a date selector to view previous days' summaries
+- **Per-Room Asset Counts** - View per-room asset counts (e.g. "Meeting Room: 4 Chairs, 1 Desk, 1 Monitor") for the selected date
 - **Scan History** - Every save-to-inventory action is recorded as a chronologically numbered scan (e.g. "Scan #1: saved Chair 1, Chair 2, Desk 1") showing how many assets, in which room, and on which date
 - **Room Management** - Define your own rooms (e.g. "Room A", "Room B") and assign detected assets to them via a dropdown
 - **Maintenance scheduling and notifications** - Never miss equipment maintenance
@@ -115,7 +116,7 @@ npm run dev
 │   │   ├── scans/
 │   │   │   └── page.tsx        # Image upload, detection, and save-to-inventory page
 │   │   ├── inventory/
-│   │   │   └── page.tsx        # View saved assets + room management
+│   │   │   └── page.tsx        # Per-date pie chart summary, scan history, and room management
 │   │   └── test-connection/    # Backend connectivity check page
 │   ├── src/
 │   │   ├── components/
@@ -357,6 +358,38 @@ Authorization: Bearer <supabase_access_token>
     "created_at": "2026-08-02T12:00:00Z"
   }
 ]
+```
+
+### `PUT /scans/{scan_id}`
+
+Changes a scan's date. The inventory items from that scan (sharing the same
+`image_id` and owner) are also moved to the new date, so the per-date summary
+stays consistent with the scan history.
+
+**Headers:**
+```
+Authorization: Bearer <supabase_access_token>
+```
+
+**Request (JSON):**
+```json
+{
+  "date": "2026-08-03"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "f5e6d7c8-...",
+  "image_id": "b2c3d4e5-...",
+  "image_url": "https://your-project.supabase.co/storage/v1/object/public/images/detected_20260729_132116_f150d6bf.jpg",
+  "room_id": "a1b2c3d4-...",
+  "room_name": "Room A",
+  "asset_count": 3,
+  "assets": ["Chair 1", "Chair 2", "Desk 1"],
+  "created_at": "2026-08-03T12:00:00Z"
+}
 ```
 
 ## Authentication (Google SSO)
