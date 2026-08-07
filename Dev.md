@@ -121,11 +121,13 @@ npm run dev
 │   │   └── test-connection/    # Backend connectivity check page
 │   ├── src/
 │   │   ├── components/
-│   │   │   └── NavAuth.tsx     # Login/Logout nav buttons (client component)
+│   │   │   ├── NavAuth.tsx       # Login/Logout nav buttons (client component)
+│   │   │   └── BackendWakeUp.tsx # Fire-and-forget Render wake-up on mount (client component)
 │   │   └── lib/
-│   │       ├── yolo.ts         # ONNX Runtime Web inference (download, preprocess, postprocess)
+│   │       ├── yolo.ts            # ONNX Runtime Web inference (download, preprocess, postprocess)
 │   │       ├── supabase-browser.ts  # Supabase browser client (Google SSO)
-│   │       └── supabase-server.ts   # Supabase server client (middleware, route handlers)
+│   │       ├── supabase-server.ts   # Supabase server client (middleware, route handlers)
+│   │       └── backend-wake.ts   # Non-blocking backend ping to wake sleeping Render service
 │   └── package.json            # Node.js dependencies
 ├── Test_Images/                # Sample test images for development
 └── README.md
@@ -710,6 +712,42 @@ downloaded once and reused for all future detections in the same browser.
 - **Annotated Images** - See bounding boxes drawn directly in the browser on detected objects
 - **Model Info Display** - View which model and device (WebGPU/WASM) was used for inference
 - **Responsive Design** - Purple-themed UI built with TailwindCSS
+
+## Backend Wake-Up on Render
+
+Render's free tier automatically puts a service to **"sleep"** after ~15 minutes
+of inactivity. The first request after sleeping incurs a cold-start penalty
+(several seconds), which can cause noticeable latency on pages that hit the API
+(e.g. `/scans`, `/inventory`).
+
+To mitigate this, the home page (`/`) fires a **fire-and-forget "ping"** to the
+backend's health-check endpoint (`GET /`) the moment a visitor lands. This wakes
+the service up in the **background** while the page renders instantly — the
+request is intentionally **not awaited**, so the main page never waits.
+
+### How It Works
+
+1. `frontend/src/lib/backend-wake.ts` — defines `wakeBackend()`, a function that
+   sends a lightweight `GET /` request to `NEXT_PUBLIC_API_URL`.
+2. `frontend/src/components/BackendWakeUp.tsx` — a tiny `"use client"` component
+   that calls `wakeBackend()` inside a `useEffect` on mount. It renders `null`
+   (no visible UI).
+3. The home page (`frontend/app/page.tsx`) renders `<BackendWakeUp />` so the
+   ping fires immediately on landing.
+
+### Key Properties
+
+| Property | Detail |
+|----------|--------|
+| **Non-blocking** | The `fetch` is prefixed with `void` — the page never awaits it. |
+| **Error-safe** | All errors are caught and swallowed; a sleeping/down backend never breaks the UI. |
+| **SSR-safe** | Guarded by `typeof window === "undefined"` — never runs during server-side rendering. |
+| **Dev-safe** | Automatically skips the ping when `NEXT_PUBLIC_API_URL` points to `localhost` (local servers don't sleep). |
+| **Keep-alive** | Uses `keepalive: true` so the request can complete even if the user navigates away. |
+| **Cache-busting** | `cache: "no-store"` ensures the browser always hits the server (never a stale cache response). |
+
+By the time the user navigates to a page that actually needs the backend, the
+service is already awake and responsive.
 
 ## Development
 

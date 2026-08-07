@@ -1,9 +1,12 @@
 import Link from "next/link";
 import NavAuth from "@/components/NavAuth";
+import BackendWakeUp from "@/components/BackendWakeUp";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-purple-200">
+    <>
+      <BackendWakeUp />
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-purple-200">
       {/* Navigation */}
       <nav className="bg-white/80 backdrop-blur-sm shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
@@ -151,5 +154,6 @@ export default function Home() {
         </div>
       </footer>
     </div>
+    </>
   );
 }
