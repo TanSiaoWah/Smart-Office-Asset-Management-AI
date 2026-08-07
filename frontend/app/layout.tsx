@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Smart Offices Asset Management AI",
-  description: "AI-powered pantry management system for tracking food items, expiration dates, and recipe suggestions",
+  description: "AI-powered asset management system for tracking office items, inventory levels, and maintenance schedules",
 };
 
 export default function RootLayout({
