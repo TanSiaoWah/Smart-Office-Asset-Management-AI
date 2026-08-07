@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Smart Pantry AI",
+  title: "Smart Offices Asset Management AI",
   description: "AI-powered pantry management system for tracking food items, expiration dates, and recipe suggestions",
 };
 
