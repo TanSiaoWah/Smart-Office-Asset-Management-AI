@@ -10,6 +10,7 @@ import {
   type DetectionBox,
 } from "@/lib/yolo";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import BackendWakingNotice from "@/components/BackendWakingNotice";
 
 // Detection response type
 interface DetectionResponse {
@@ -53,7 +54,9 @@ export default function ScansPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAddingManual, setIsAddingManual] = useState(false);
   const [manualAssetName, setManualAssetName] = useState("");
+  const [showStorageWait, setShowStorageWait] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const storageWaitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -65,6 +68,15 @@ export default function ScansPage() {
         await fetchRooms(session.access_token);
       }
     });
+  }, []);
+
+  // Clear any pending wake-notice timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (storageWaitTimer.current) {
+        clearTimeout(storageWaitTimer.current);
+      }
+    };
   }, []);
 
   const fetchRooms = async (accessToken: string) => {
@@ -122,6 +134,11 @@ export default function ScansPage() {
 
       // Stage 3: Store the original + annotated images and detection
       // results via the slimmed backend (Supabase storage).
+      // If the Render free-tier backend is asleep, this request stalls for
+      // up to ~1 minute while it wakes up. After 5s, show an inline notice
+      // explaining the wait instead of leaving the user with a bare spinner.
+      storageWaitTimer.current = setTimeout(() => setShowStorageWait(true), 5000);
+
       const formData = new FormData();
       formData.append("file", file, file.name || "image.jpg");
       formData.append(
@@ -157,6 +174,11 @@ export default function ScansPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred during detection");
     } finally {
+      if (storageWaitTimer.current) {
+        clearTimeout(storageWaitTimer.current);
+        storageWaitTimer.current = null;
+      }
+      setShowStorageWait(false);
       setIsDetecting(false);
       setIsDownloadingModel(false);
     }
@@ -346,6 +368,10 @@ export default function ScansPage() {
                   This is the first run. The AI model is being downloaded from Hugging Face
                   (~a few MB) and will be cached in your browser for future scans.
                 </p>
+              )}
+
+              {showStorageWait && !isDownloadingModel && (
+                <BackendWakingNotice variant="inline" />
               )}
             </div>
           )}

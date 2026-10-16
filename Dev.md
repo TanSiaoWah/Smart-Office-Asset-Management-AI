@@ -749,6 +749,22 @@ request is intentionally **not awaited**, so the main page never waits.
 By the time the user navigates to a page that actually needs the backend, the
 service is already awake and responsive.
 
+### Visible Wake-Up Notice
+
+Because the free-tier cold start can take **up to ~1 minute**, pages that block
+on the backend no longer show a bare "Loading…" spinner:
+
+- `frontend/src/components/BackendWakingNotice.tsx` — a client component that
+  explains the backend is hosted on **Render's free plan**, sleeps after
+  inactivity, and needs **~1 minute** to wake up. It shows a spinner, a live
+  elapsed-seconds timer, and extra reassurance text after 45 seconds. It has
+  two variants: `fullscreen` (full-page loader) and `inline` (compact card).
+- `/inventory` — while the initial inventory/rooms/scans fetch is in flight,
+  the full-page `<BackendWakingNotice />` is shown.
+- `/scans` — if the backend storage request (`POST /detects/detect`) takes
+  more than 5 seconds (i.e. the backend was asleep), the inline variant is
+  rendered under the action buttons so the user knows the server is waking up.
+
 ## Development
 
 ### Updating the Detection Model

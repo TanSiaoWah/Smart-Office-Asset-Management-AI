@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import BackendWakingNotice from "@/components/BackendWakingNotice";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -443,11 +444,10 @@ export default function InventoryPage() {
   const isToday = selectedDate === toDateInputValue(new Date());
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-purple-200 flex items-center justify-center">
-        <p className="text-purple-700 text-lg">Loading…</p>
-      </div>
-    );
+    // While the initial fetch is in flight, the Render free-tier backend may
+    // be waking up from sleep (up to ~1 minute). Show a detailed notice
+    // instead of a bare spinner so the wait is explained to the user.
+    return <BackendWakingNotice />;
   }
 
   return (
