@@ -761,6 +761,10 @@ on the backend no longer show a bare "Loading…" spinner:
   two variants: `fullscreen` (full-page loader) and `inline` (compact card).
 - `/inventory` — while the initial inventory/rooms/scans fetch is in flight,
   the full-page `<BackendWakingNotice />` is shown.
+- `/profile` — while the initial `GET /auth/me` profile fetch is in flight,
+  the full-page `<BackendWakingNotice />` is shown.
+- `/login` — the bare "Loading…" states (session check + `Suspense` fallback)
+  were replaced with the full-page notice for a consistent UI across the app.
 - `/scans` — if the backend storage request (`POST /detects/detect`) takes
   more than 5 seconds (i.e. the backend was asleep), the inline variant is
   rendered under the action buttons so the user knows the server is waking up.

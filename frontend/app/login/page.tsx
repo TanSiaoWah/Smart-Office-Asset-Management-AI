@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import BackendWakingNotice from "@/components/BackendWakingNotice";
 
 function LoginContent() {
   const router = useRouter();
@@ -57,11 +58,9 @@ function LoginContent() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-purple-200 flex items-center justify-center">
-        <p className="text-purple-700 text-lg">Loading…</p>
-      </div>
-    );
+    // Show the detailed wake-up notice instead of a bare "Loading…" so the
+    // UI stays consistent with the rest of the app.
+    return <BackendWakingNotice />;
   }
 
   return (
@@ -129,13 +128,7 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-purple-200 flex items-center justify-center">
-          <p className="text-purple-700 text-lg">Loading…</p>
-        </div>
-      }
-    >
+    <Suspense fallback={<BackendWakingNotice />}>
       <LoginContent />
     </Suspense>
   );
