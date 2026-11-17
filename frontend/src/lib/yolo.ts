@@ -4,12 +4,12 @@
  * The `best.onnx` model is downloaded through the backend proxy endpoint
  * `/detects/model` (which fetches it from the gated Hugging Face repo using
  * the server-side HF_TOKEN) and cached via the Cache API so it is only
- * downloaded once per browser. Detection runs entirely in the browser via
- * the WebAssembly (WASM) execution provider.
+ * downloaded once per browser. Detection runs in the browser and prefers
+ * WebGPU, with a WASM retry if WebGPU is unavailable or fails.
  */
 "use client";
 
-import * as ort from "onnxruntime-web";
+import type * as ort from "onnxruntime-web";
 
 export interface DetectionBox {
   id: number;
@@ -18,9 +18,12 @@ export interface DetectionBox {
   bbox: [number, number, number, number];
 }
 
+export type InferenceDevice = "webgpu" | "wasm";
+
 export interface DetectResult {
   detections: DetectionBox[];
   modelUrl: string;
+  device: InferenceDevice;
 }
 
 /** Office asset class names matching backend/models/dataset.yaml. */
@@ -42,7 +45,20 @@ const IMG_SIZE = 640;
 const CONF_THRES = 0.25;
 const IOU_THRES = 0.45;
 
-let sessionPromise: Promise<ort.InferenceSession> | null = null;
+interface ModelSession {
+  runtime: typeof ort;
+  session: ort.InferenceSession;
+  device: InferenceDevice;
+}
+
+interface WebGpuQueue {
+  submit(commandBuffers: Iterable<unknown>): void;
+}
+
+let modelData: ArrayBuffer | undefined;
+let modelSession: ModelSession | undefined;
+let webGpuFailed = false;
+let pendingInference = Promise.resolve();
 
 async function fetchModelWithCache(): Promise<ArrayBuffer> {
   if (typeof caches === "undefined") {
@@ -68,34 +84,75 @@ async function fetchModelWithCache(): Promise<ArrayBuffer> {
   return res.arrayBuffer();
 }
 
-/**
- * Get (and lazily create) the cached ONNX inference session.
- *
- * The session is created once and reused for all subsequent detections.
- *
- * Returns:
- *     Promise resolving to an ONNX Runtime Web InferenceSession.
- */
-export async function getModelSession(): Promise<ort.InferenceSession> {
-  if (!sessionPromise) {
-    sessionPromise = (async () => {
-      if (typeof document !== "undefined") {
-        ort.env.wasm.wasmPaths = WASM_PATH;
-      }
-      const modelData = await fetchModelWithCache();
-      return ort.InferenceSession.create(modelData, {
-        // Use the WASM provider only. The WebGPU provider is still
-        // experimental in onnxruntime-web and can throw cryptic errors
-        // (e.g. "e.getValue is not a function") for unsupported ops.
-        executionProviders: ["wasm"],
-        graphOptimizationLevel: "all",
-      });
-    })().catch((err: unknown) => {
-      sessionPromise = null;
-      throw err;
-    });
+async function createModelSession(bytes: ArrayBuffer, device: InferenceDevice): Promise<ModelSession> {
+  // An independent WASM runtime can recover from WebGPU runtime failures.
+  const runtime = device === "webgpu"
+    ? await import("onnxruntime-web/webgpu")
+    : await import("onnxruntime-web/wasm");
+  runtime.env.wasm.wasmPaths = WASM_PATH;
+  const session = await runtime.InferenceSession.create(bytes, {
+    executionProviders: [device],
+    graphOptimizationLevel: "all",
+  });
+  return { runtime, session, device };
+}
+
+async function runSession({ runtime, session }: ModelSession, input: Float32Array): Promise<ort.Tensor> {
+  const tensor = new runtime.Tensor("float32", input, [1, 3, IMG_SIZE, IMG_SIZE]);
+  try {
+    const outputs = await session.run({ [session.inputNames[0]]: tensor });
+    return outputs[session.outputNames[0]];
+  } finally {
+    tensor.dispose();
   }
-  return sessionPromise;
+}
+
+async function runWebGpuSession(model: ModelSession, input: Float32Array) {
+  const { queue } = model.runtime.env.webgpu.device as { queue: WebGpuQueue };
+  const original = Object.getOwnPropertyDescriptor(queue, "submit");
+  const submit = queue.submit;
+  let usedWebGpu = false;
+
+  // A WebGPU session can assign operators to WASM. Observe submissions
+  // on its own device to identify runs that actually used the GPU.
+  queue.submit = (commands) => {
+    submit.call(queue, commands);
+    usedWebGpu = true;
+  };
+  try {
+    const output = await runSession(model, input);
+    const device: InferenceDevice = usedWebGpu ? "webgpu" : "wasm";
+    return { output, device };
+  } finally {
+    if (original) Object.defineProperty(queue, "submit", original);
+    else Reflect.deleteProperty(queue, "submit");
+  }
+}
+
+async function runWithFallback(input: Float32Array): Promise<{ output: ort.Tensor; device: InferenceDevice }> {
+  if (modelSession?.device === "wasm") {
+    return { output: await runSession(modelSession, input), device: "wasm" };
+  }
+
+  const bytes = (modelData ??= await fetchModelWithCache());
+  if (!webGpuFailed && typeof navigator !== "undefined" && "gpu" in navigator && navigator.gpu) {
+    try {
+      const model = (modelSession ??= await createModelSession(bytes, "webgpu"));
+      return await runWebGpuSession(model, input);
+    } catch (error) {
+      webGpuFailed = true;
+      const failedSession = modelSession;
+      modelSession = undefined;
+      console.warn("WebGPU inference failed; retrying with WASM.", error);
+      await failedSession?.session.release().catch((releaseError: unknown) => {
+        console.warn("Failed to release the WebGPU session.", releaseError);
+      });
+    }
+  }
+
+  modelSession = await createModelSession(bytes, "wasm");
+  modelData = undefined;
+  return { output: await runSession(modelSession, input), device: "wasm" };
 }
 
 /**
@@ -133,7 +190,7 @@ export async function loadImageCanvas(file: Blob): Promise<HTMLCanvasElement> {
 }
 
 interface Preprocessed {
-  tensor: ort.Tensor;
+  input: Float32Array;
   scale: number;
   padX: number;
   padY: number;
@@ -178,7 +235,7 @@ function preprocess(canvas: HTMLCanvasElement): Preprocessed {
   }
 
   return {
-    tensor: new ort.Tensor("float32", input, [1, 3, target, target]),
+    input,
     scale,
     padX,
     padY,
@@ -377,30 +434,28 @@ function decodeOutput(
  *     canvas: Canvas containing the source image.
  *
  * Returns:
- *     Detected assets and the model URL used.
+ *     Detected assets, model URL, and device used.
  */
 export async function detectFromCanvas(
   canvas: HTMLCanvasElement
 ): Promise<DetectResult> {
-  const session = await getModelSession();
   const origW = canvas.width;
   const origH = canvas.height;
+  const { input, scale, padX, padY } = preprocess(canvas);
 
-  const { tensor, scale, padX, padY } = preprocess(canvas);
-
-  const feeds: Record<string, ort.Tensor> = {
-    [session.inputNames[0]]: tensor,
-  };
-
-  const results = await session.run(feeds);
-  const output = results[session.outputNames[0]];
-
-  const detections = decodeOutput(output, scale, padX, padY, origW, origH);
-
-  return {
-    detections,
-    modelUrl: DEFAULT_ONNX_URL,
-  };
+  // Serialize runs to keep GPU submission tracking scoped to one inference.
+  const inference = pendingInference.then(() => runWithFallback(input));
+  pendingInference = inference.then(() => undefined, () => undefined);
+  const { output, device } = await inference;
+  try {
+    return {
+      detections: decodeOutput(output, scale, padX, padY, origW, origH),
+      modelUrl: DEFAULT_ONNX_URL,
+      device,
+    };
+  } finally {
+    output.dispose();
+  }
 }
 
 /**
@@ -410,7 +465,7 @@ export async function detectFromCanvas(
  *     file: Uploaded image file.
  *
  * Returns:
- *     Detected assets and the model URL used.
+ *     Detected assets, model URL, and device used.
  */
 export async function detectImage(file: Blob): Promise<DetectResult> {
   const canvas = await loadImageCanvas(file);

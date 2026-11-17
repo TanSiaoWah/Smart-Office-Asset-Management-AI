@@ -8,6 +8,7 @@ import {
   canvasToJpegBlob,
   loadImageCanvas,
   type DetectionBox,
+  type InferenceDevice,
 } from "@/lib/yolo";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import BackendWakingNotice from "@/components/BackendWakingNotice";
@@ -21,9 +22,10 @@ interface DetectionResponse {
   model_info: {
     model_path: string;
     model_type: string;
-    device: string;
   };
 }
+
+type ScanResult = DetectionResponse & { device: InferenceDevice };
 
 interface Room {
   id: string;
@@ -42,7 +44,7 @@ interface SaveableDetection {
 
 export default function ScansPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [detectionResult, setDetectionResult] = useState<DetectionResponse | null>(null);
+  const [detectionResult, setDetectionResult] = useState<ScanResult | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const [isDownloadingModel, setIsDownloadingModel] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +126,7 @@ export default function ScansPage() {
       // Stage 1: Run YOLO detection fully in the browser (downloads the
       // ONNX model from Hugging Face on the first use, then caches it).
       setIsDownloadingModel(true);
-      const { detections } = await detectImage(file);
+      const { detections, device } = await detectImage(file);
       setIsDownloadingModel(false);
 
       // Stage 2: Draw bounding boxes on the image and export as JPEG.
@@ -146,7 +148,7 @@ export default function ScansPage() {
         annotatedBlob,
         "annotated.jpg"
       );
-      formData.append("detections", JSON.stringify({ detections }));
+      formData.append("detections", JSON.stringify({ detections, device }));
 
       const response = await fetch(`${API_BASE_URL}/detects/detect`, {
         method: "POST",
@@ -158,7 +160,7 @@ export default function ScansPage() {
       }
 
       const result: DetectionResponse = await response.json();
-      setDetectionResult(result);
+      setDetectionResult({ ...result, device });
 
       // Initialize saveable detections (all selected by default, no room).
       setSaveableDetections(
@@ -414,7 +416,7 @@ export default function ScansPage() {
                   <span className="font-semibold">Type:</span> {detectionResult.model_info.model_type === "onnx" || detectionResult.model_info.model_type === "onnx-web" ? "ONNX Runtime Web" : detectionResult.model_info.model_type}
                 </p>
                 <p className="text-sm text-purple-800">
-                  <span className="font-semibold">Device:</span> {detectionResult.model_info.device === "cuda" ? "GPU (CUDA)" : detectionResult.model_info.device === "webgpu/wasm" ? "WebGPU / WASM" : detectionResult.model_info.device}
+                  <span className="font-semibold">Device:</span> {detectionResult.device === "webgpu" ? "WebGPU" : "WASM"}
                 </p>
               </div>
             )}
